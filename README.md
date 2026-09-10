@@ -29,7 +29,7 @@ Backend modules (packages inside one application):
 | `email` | Future transactional/bulk sending |
 | `template` | Future templates |
 | `queue` | RabbitMQ topology for outbound and bounce traffic |
-| `delivery` | Mailpit-only local destination configuration |
+| `delivery` | `MtaClient` SMTP transport (Mailpit locally; Postfix later) |
 | `suppression` | Future suppression lists |
 | `bounce` | Future bounce processing |
 | `analytics` | Future delivery analytics |
@@ -187,10 +187,12 @@ Transactional send acceptance is asynchronous:
 
 1. `POST /api/v1/emails` (optional `Idempotency-Key`) authorizes, validates sender/template, splits suppressed vs deliverable recipients, consumes **one email unit per deliverable recipient**, persists `QUEUED`, writes an outbox event `EMAIL_DELIVERY_REQUESTED`, and emits `email.queued`.
 2. `OutboxPublisher` polls unpublished outbox rows and publishes JSON jobs `{messageId, tenantId, attempt}` to RabbitMQ (`email.delivery.exchange` / `email.delivery.queue`).
-3. `EmailDeliveryWorker` transitions `QUEUED`/`DEFERRED` → `PROCESSING` → `SENDING`, records `delivery_attempts`, and calls `DeliveryEngine` (Mailpit locally; Postfix not implemented).
+3. `EmailDeliveryWorker` transitions `QUEUED`/`DEFERRED` → `PROCESSING` → `SENDING`, records `delivery_attempts`, composes MIME, DKIM-signs, and submits through `MtaClient` (Mailpit locally; Postfix not implemented).
 4. Outcomes: `DELIVERED`, temporary `DEFERRED` with TTL retry queues (30s → 2h), or permanent `FAILED` / `BOUNCED` (550), with matching webhooks.
 
 Config under `email-platform.email`: `max-recipients`, `max-attempts`, `outbox-poll-ms`, `rate-limit-per-minute`.
+
+See [docs/mta-transport.md](docs/mta-transport.md) for the MTA abstraction, TLS settings, and the intended future Postfix topology.
 
 ## Phase 6 — subscription billing (Razorpay TEST)
 

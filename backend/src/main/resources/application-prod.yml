@@ -27,6 +27,23 @@ email-platform:
   mailpit:
     host: ${MAILPIT_HOST}
     smtp-port: ${MAILPIT_SMTP_PORT}
+  mta:
+    implementation: ${MTA_IMPLEMENTATION:mailpit}
+    require-dkim: ${MTA_REQUIRE_DKIM:true}
+    ehlo-host: ${MTA_EHLO_HOST:texto.local}
+    smtp:
+      host: ${MTA_SMTP_HOST:}
+      port: ${MTA_SMTP_PORT:0}
+      connection-timeout-ms: ${MTA_SMTP_CONNECTION_TIMEOUT_MS:5000}
+      read-timeout-ms: ${MTA_SMTP_READ_TIMEOUT_MS:5000}
+      write-timeout-ms: ${MTA_SMTP_WRITE_TIMEOUT_MS:5000}
+      username: ${MTA_SMTP_USERNAME:}
+      password: ${MTA_SMTP_PASSWORD:}
+    starttls:
+      enabled: ${MTA_STARTTLS_ENABLED:false}
+      required: ${MTA_STARTTLS_REQUIRED:false}
+    ssl:
+      enabled: ${MTA_SSL_ENABLED:false}
 
 logging:
   structured:
