@@ -111,7 +111,9 @@ public class RazorpayClient {
     }
 
     public JsonNode resumeSubscription(String subscriptionId) {
-        return post("/subscriptions/" + subscriptionId + "/resume", objectMapper.createObjectNode());
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("resume_at", "now");
+        return post("/subscriptions/" + subscriptionId + "/resume", body);
     }
 
     private JsonNode get(String path) {

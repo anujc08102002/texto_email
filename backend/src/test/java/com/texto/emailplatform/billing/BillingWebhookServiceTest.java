@@ -148,9 +148,42 @@ class BillingWebhookServiceTest {
         assertThat(subscription.getGracePeriodEndsAt()).isNotNull();
     }
 
+    @Test
+    void ignoresOutOfOrderEventOlderThanLastApplied() {
+        Instant now = Instant.now();
+        // A stale payment.failed that was delivered late, after a newer event already advanced state.
+        ProviderWebhookEvent stale = sampleEvent("evt_stale", "payment.failed", now.minusSeconds(120));
+        when(billingEventRepository.existsByProviderAndProviderEventId(BillingProviders.RAZORPAY, "evt_stale"))
+                .thenReturn(false);
+        when(billingEventRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(billingEventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubscriptionEntity subscription = SubscriptionEntity.create(
+                TENANT_ID,
+                PLAN_ID,
+                SubscriptionStatus.ACTIVE,
+                now.minusSeconds(60),
+                now.plusSeconds(3600)
+        );
+        subscription.attachProvider(BillingProviders.RAZORPAY, "cust_1", "sub_123", "active");
+        subscription.recordBillingEventAt(now); // newer event already applied
+        when(subscriptionRepository.findByProviderAndProviderSubscriptionId(BillingProviders.RAZORPAY, "sub_123"))
+                .thenReturn(Optional.of(subscription));
+
+        service.processEvent(stale);
+
+        // Stale event must not change subscription state or persist a subscription update.
+        assertThat(subscription.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(subscription.getGracePeriodEndsAt()).isNull();
+        verify(subscriptionRepository, never()).save(any());
+    }
+
     private ProviderWebhookEvent sampleEvent(String eventId, String type) {
+        return sampleEvent(eventId, type, Instant.now());
+    }
+
+    private ProviderWebhookEvent sampleEvent(String eventId, String type, Instant createdAt) {
         ObjectNode raw = objectMapper.createObjectNode();
-        raw.put("id", eventId);
         raw.put("event", type);
         boolean activation = "subscription.activated".equals(type)
                 || "subscription.authenticated".equals(type)
@@ -171,6 +204,7 @@ class BillingWebhookServiceTest {
                 suggested,
                 activation,
                 paymentFailure,
+                createdAt,
                 raw
         );
     }

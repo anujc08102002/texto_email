@@ -61,6 +61,12 @@ public class SubscriptionEntity {
     @Column(name = "grace_period_ends_at")
     private Instant gracePeriodEndsAt;
 
+    // Timestamp (provider event created_at) of the most recent billing webhook applied to this
+    // subscription. Used to ignore out-of-order webhook deliveries (Razorpay does not guarantee
+    // event ordering).
+    @Column(name = "last_billing_event_at")
+    private Instant lastBillingEventAt;
+
     @Column(name = "notes")
     private String notes;
 
@@ -242,6 +248,21 @@ public class SubscriptionEntity {
 
     public Instant getGracePeriodEndsAt() {
         return gracePeriodEndsAt;
+    }
+
+    public Instant getLastBillingEventAt() {
+        return lastBillingEventAt;
+    }
+
+    /** Advances the last-applied billing-event watermark, never moving it backwards. */
+    public void recordBillingEventAt(Instant eventCreatedAt) {
+        if (eventCreatedAt == null) {
+            return;
+        }
+        if (lastBillingEventAt == null || eventCreatedAt.isAfter(lastBillingEventAt)) {
+            lastBillingEventAt = eventCreatedAt;
+            this.updatedAt = Instant.now();
+        }
     }
 
     public String getNotes() {

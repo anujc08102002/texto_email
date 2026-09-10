@@ -53,6 +53,11 @@ public class BillingWebhookService {
 
     @Transactional
     public void handleRazorpayWebhook(String rawBody, String signatureHeader) {
+        handleRazorpayWebhook(rawBody, signatureHeader, null);
+    }
+
+    @Transactional
+    public void handleRazorpayWebhook(String rawBody, String signatureHeader, String eventIdHeader) {
         if (!billingProvider.verifyWebhook(rawBody, signatureHeader)) {
             throw new ApiException(
                     HttpStatus.UNAUTHORIZED.value(),
@@ -61,6 +66,11 @@ public class BillingWebhookService {
             );
         }
         ProviderWebhookEvent event = billingProvider.parseWebhookEvent(rawBody);
+        // Razorpay's authoritative, unique-per-event identifier is the X-Razorpay-Event-Id header;
+        // prefer it for idempotency over any body-derived id.
+        if (eventIdHeader != null && !eventIdHeader.isBlank()) {
+            event = event.withProviderEventId(eventIdHeader.trim());
+        }
         processEvent(event);
     }
 
@@ -105,7 +115,17 @@ public class BillingWebhookService {
 
             SubscriptionEntity entity = subscription.get();
             billingEvent.link(entity.getTenantId(), entity.getId());
+
+            // Razorpay does not guarantee webhook ordering. Ignore events that predate the most
+            // recent one already applied so a delayed delivery cannot overwrite newer state.
+            if (isStale(entity, event)) {
+                billingEvent.markIgnored("Out-of-order event older than last applied billing event");
+                billingEventRepository.save(billingEvent);
+                return;
+            }
+
             applyEvent(entity, event);
+            entity.recordBillingEventAt(event.eventCreatedAt());
             subscriptionRepository.save(entity);
             billingEvent.markProcessed();
             billingEventRepository.save(billingEvent);
@@ -114,6 +134,13 @@ public class BillingWebhookService {
             billingEventRepository.save(billingEvent);
             throw exception;
         }
+    }
+
+    private boolean isStale(SubscriptionEntity subscription, ProviderWebhookEvent event) {
+        Instant eventAt = event.eventCreatedAt();
+        Instant lastAt = subscription.getLastBillingEventAt();
+        // Strictly-older only: same-second events (e.g. activated + charged) must still be applied.
+        return eventAt != null && lastAt != null && eventAt.isBefore(lastAt);
     }
 
     private Optional<SubscriptionEntity> findSubscription(ProviderWebhookEvent event) {
