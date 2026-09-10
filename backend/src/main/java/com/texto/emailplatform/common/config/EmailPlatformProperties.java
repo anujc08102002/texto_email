@@ -10,6 +10,8 @@ public class EmailPlatformProperties {
     private final Cors cors = new Cors();
     private final Security security = new Security();
     private final Mailpit mailpit = new Mailpit();
+    @NestedConfigurationProperty
+    private final Mta mta = new Mta();
     private final Domains domains = new Domains();
     private final Webhooks webhooks = new Webhooks();
     private final Email email = new Email();
@@ -25,6 +27,26 @@ public class EmailPlatformProperties {
 
     public Mailpit getMailpit() {
         return mailpit;
+    }
+
+    public Mta getMta() {
+        return mta;
+    }
+
+    public String resolvedMtaHost() {
+        String host = mta.getSmtp().getHost();
+        if (host == null || host.isBlank()) {
+            return mailpit.getHost();
+        }
+        return host.trim();
+    }
+
+    public int resolvedMtaPort() {
+        int port = mta.getSmtp().getPort();
+        if (port <= 0) {
+            return mailpit.getSmtpPort();
+        }
+        return port;
     }
 
     public Domains getDomains() {
@@ -85,6 +107,162 @@ public class EmailPlatformProperties {
 
         public void setSmtpPort(int smtpPort) {
             this.smtpPort = smtpPort;
+        }
+    }
+
+    /**
+     * Outbound MTA transport. Local default is Mailpit without TLS.
+     * Production Postfix is not implemented in this step.
+     */
+    public static class Mta {
+        /** {@code mailpit} is the only supported implementation. */
+        private String implementation = "mailpit";
+        private boolean requireDkim = true;
+        private String ehloHost = "texto.local";
+        @NestedConfigurationProperty
+        private final Smtp smtp = new Smtp();
+        @NestedConfigurationProperty
+        private final StartTls starttls = new StartTls();
+        @NestedConfigurationProperty
+        private final Ssl ssl = new Ssl();
+
+        public String getImplementation() {
+            return implementation;
+        }
+
+        public void setImplementation(String implementation) {
+            this.implementation = implementation;
+        }
+
+        public boolean isRequireDkim() {
+            return requireDkim;
+        }
+
+        public void setRequireDkim(boolean requireDkim) {
+            this.requireDkim = requireDkim;
+        }
+
+        public String getEhloHost() {
+            return ehloHost;
+        }
+
+        public void setEhloHost(String ehloHost) {
+            this.ehloHost = ehloHost;
+        }
+
+        public Smtp getSmtp() {
+            return smtp;
+        }
+
+        public StartTls getStarttls() {
+            return starttls;
+        }
+
+        public Ssl getSsl() {
+            return ssl;
+        }
+    }
+
+    public static class Smtp {
+        /** When empty, {@link Mailpit#getHost()} is used. */
+        private String host = "";
+        /** When 0, {@link Mailpit#getSmtpPort()} is used. */
+        private int port;
+        private int connectionTimeoutMs = 5_000;
+        private int readTimeoutMs = 5_000;
+        private int writeTimeoutMs = 5_000;
+        private String username = "";
+        private String password = "";
+
+        public String getHost() {
+            return host;
+        }
+
+        public void setHost(String host) {
+            this.host = host;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        public void setPort(int port) {
+            this.port = port;
+        }
+
+        public int getConnectionTimeoutMs() {
+            return connectionTimeoutMs;
+        }
+
+        public void setConnectionTimeoutMs(int connectionTimeoutMs) {
+            this.connectionTimeoutMs = connectionTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
+
+        public int getWriteTimeoutMs() {
+            return writeTimeoutMs;
+        }
+
+        public void setWriteTimeoutMs(int writeTimeoutMs) {
+            this.writeTimeoutMs = writeTimeoutMs;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+    }
+
+    public static class StartTls {
+        /** Local Mailpit: disabled. Future application-to-Postfix hop: enable and typically require. */
+        private boolean enabled;
+        private boolean required;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isRequired() {
+            return required;
+        }
+
+        public void setRequired(boolean required) {
+            this.required = required;
+        }
+    }
+
+    public static class Ssl {
+        /** Implicit TLS (SMTPS, typically port 465). Off for Mailpit. */
+        private boolean enabled;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
     }
 

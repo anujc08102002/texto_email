@@ -1,9 +1,11 @@
 package com.texto.emailplatform.delivery;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
- * Abstraction over outbound email providers. Mailpit for local; Postfix later.
+ * Application-facing delivery port. Implementations compose MIME, DKIM-sign, then
+ * submit through {@link com.texto.emailplatform.delivery.mta.MtaClient}.
  */
 public interface DeliveryEngine {
 
@@ -17,8 +19,22 @@ public interface DeliveryEngine {
             String replyTo,
             String subject,
             String textBody,
-            String htmlBody
+            String htmlBody,
+            UUID messageId,
+            UUID tenantId
     ) {
+        public DeliveryRequest(
+                String from,
+                List<String> to,
+                List<String> cc,
+                List<String> bcc,
+                String replyTo,
+                String subject,
+                String textBody,
+                String htmlBody
+        ) {
+            this(from, to, cc, bcc, replyTo, subject, textBody, htmlBody, null, null);
+        }
     }
 
     enum Outcome {

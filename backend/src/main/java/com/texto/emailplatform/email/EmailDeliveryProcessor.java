@@ -102,7 +102,9 @@ public class EmailDeliveryProcessor {
                 message.getReplyTo(),
                 message.getSubject(),
                 message.getTextBody(),
-                message.getHtmlBody()
+                message.getHtmlBody(),
+                message.getId(),
+                tenantId
         ));
 
         switch (result.outcome()) {
