@@ -174,6 +174,25 @@ class Phase4CoreIT {
             txtRecords.put(String.valueOf(record.get("name")), List.of(String.valueOf(record.get("value"))));
         }
 
+        // Phase 8A Step 1: the DKIM private key is securely persisted (encrypted), corresponds to the
+        // published public key, and is never exposed through the API.
+        Map<String, Object> dkimKey = jdbcTemplate.queryForMap(
+                "select selector, algorithm, key_size, public_key, encrypted_private_key, status "
+                        + "from dkim_keys where domain_id = ?::uuid",
+                domainId);
+        assertThat(dkimKey.get("status")).isEqualTo("ACTIVE");
+        assertThat(dkimKey.get("selector")).isEqualTo("texto");
+        assertThat(dkimKey.get("algorithm")).isEqualTo("rsa");
+        assertThat(((Number) dkimKey.get("key_size")).intValue()).isEqualTo(2048);
+        String encryptedPrivateKey = String.valueOf(dkimKey.get("encrypted_private_key"));
+        String storedPublicKey = String.valueOf(dkimKey.get("public_key"));
+        assertThat(encryptedPrivateKey).startsWith("dk1:");
+        assertThat(encryptedPrivateKey).doesNotContain(storedPublicKey);
+        // The persisted public key matches the DKIM DNS record's p= value.
+        assertThat(body).contains("p=" + storedPublicKey);
+        // The encrypted private-key material must never leak into any API response.
+        assertThat(body).doesNotContain(encryptedPrivateKey);
+
         mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())

@@ -11,6 +11,7 @@ public class EmailPlatformProperties {
     private final Security security = new Security();
     private final Mailpit mailpit = new Mailpit();
     private final Domains domains = new Domains();
+    private final Dkim dkim = new Dkim();
     private final Webhooks webhooks = new Webhooks();
     private final Email email = new Email();
     private final Billing billing = new Billing();
@@ -29,6 +30,10 @@ public class EmailPlatformProperties {
 
     public Domains getDomains() {
         return domains;
+    }
+
+    public Dkim getDkim() {
+        return dkim;
     }
 
     public Webhooks getWebhooks() {
@@ -100,6 +105,23 @@ public class EmailPlatformProperties {
 
         public void setAllowPlatformTestSenders(boolean allowPlatformTestSenders) {
             this.allowPlatformTestSenders = allowPlatformTestSenders;
+        }
+    }
+
+    public static class Dkim {
+        /**
+         * Base64-encoded 32-byte AES-256 key used to encrypt DKIM private keys at rest.
+         * Required in the {@code prod} profile; a process-local dev key is used when blank in local/test.
+         * Generate one with {@code openssl rand -base64 32}. Never commit or log the value.
+         */
+        private String encryptionKey;
+
+        public String getEncryptionKey() {
+            return encryptionKey;
+        }
+
+        public void setEncryptionKey(String encryptionKey) {
+            this.encryptionKey = encryptionKey;
         }
     }
 

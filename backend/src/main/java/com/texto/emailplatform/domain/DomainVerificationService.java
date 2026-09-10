@@ -1,5 +1,8 @@
 package com.texto.emailplatform.domain;
 
+import com.texto.emailplatform.domain.dkim.DkimKeyProtector;
+import com.texto.emailplatform.domain.dkim.domain.DkimKeyEntity;
+import com.texto.emailplatform.domain.dkim.domain.DkimKeyRepository;
 import com.texto.emailplatform.domain.domain.DomainEntity;
 import com.texto.emailplatform.domain.domain.DomainVerificationRecordEntity;
 import com.texto.emailplatform.domain.domain.DomainVerificationRecordRepository;
@@ -18,17 +21,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class DomainVerificationService {
 
     private static final String DKIM_SELECTOR = "texto";
+    private static final String DKIM_ALGORITHM = "rsa";
+    private static final int DKIM_KEY_SIZE = 2048;
 
     private final DomainVerificationRecordRepository verificationRecordRepository;
     private final DnsLookupService dnsLookupService;
+    private final DkimKeyProtector dkimKeyProtector;
+    private final DkimKeyRepository dkimKeyRepository;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public DomainVerificationService(
             DomainVerificationRecordRepository verificationRecordRepository,
-            DnsLookupService dnsLookupService
+            DnsLookupService dnsLookupService,
+            DkimKeyProtector dkimKeyProtector,
+            DkimKeyRepository dkimKeyRepository
     ) {
         this.verificationRecordRepository = verificationRecordRepository;
         this.dnsLookupService = dnsLookupService;
+        this.dkimKeyProtector = dkimKeyProtector;
+        this.dkimKeyRepository = dkimKeyRepository;
     }
 
     @Transactional
@@ -41,9 +52,13 @@ public class DomainVerificationService {
         String token = HexFormat.of().formatHex(randomBytes(8));
         String verifyMarker = "texto-verify-" + token;
 
+        // Generate the DKIM keypair, publish the (unchanged, RFC-compatible SubjectPublicKeyInfo)
+        // public key, and securely persist the encrypted private key so it can later sign mail.
+        // This runs in the caller's transaction: if encryption or persistence fails, the whole
+        // domain setup rolls back — we never publish a DKIM record without a retrievable key.
         KeyPair keyPair = generateKeyPair();
         String publicKey = Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded());
-        String privateKeyRef = "local-ref:" + UUID.randomUUID();
+        String privateKeyRef = persistDkimKey(domain.getId(), publicKey, keyPair.getPrivate().getEncoded());
 
         List<DomainVerificationRecordEntity> records = new ArrayList<>();
         records.add(DomainVerificationRecordEntity.create(
@@ -107,10 +122,33 @@ public class DomainVerificationService {
         return left.equals(right) || left.contains(right);
     }
 
+    /**
+     * Encrypts and persists the DKIM private key for the domain, returning a stable reference to the
+     * stored key row. Idempotent: if an active key already exists it is reused rather than replaced.
+     */
+    private String persistDkimKey(UUID domainId, String publicKey, byte[] pkcs8PrivateKey) {
+        DkimKeyEntity existing = dkimKeyRepository
+                .findByDomainIdAndSelectorAndStatus(domainId, DKIM_SELECTOR, DkimKeyEntity.STATUS_ACTIVE)
+                .orElse(null);
+        if (existing != null) {
+            return "dkim-key:" + existing.getId();
+        }
+        String encryptedPrivateKey = dkimKeyProtector.encryptPrivateKey(pkcs8PrivateKey);
+        DkimKeyEntity dkimKey = dkimKeyRepository.save(DkimKeyEntity.createActive(
+                domainId,
+                DKIM_SELECTOR,
+                DKIM_ALGORITHM,
+                DKIM_KEY_SIZE,
+                publicKey,
+                encryptedPrivateKey
+        ));
+        return "dkim-key:" + dkimKey.getId();
+    }
+
     private static KeyPair generateKeyPair() {
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(2048);
+            generator.initialize(DKIM_KEY_SIZE);
             return generator.generateKeyPair();
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to generate DKIM key pair", exception);
