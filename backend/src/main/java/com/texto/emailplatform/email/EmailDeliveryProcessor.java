@@ -95,6 +95,7 @@ public class EmailDeliveryProcessor {
         }
 
         DeliveryEngine.DeliveryResult result = deliveryEngine.deliver(new DeliveryEngine.DeliveryRequest(
+                message.getTenantId(),
                 message.getFromAddress(),
                 message.getRecipientsTo(),
                 message.getRecipientsCc(),

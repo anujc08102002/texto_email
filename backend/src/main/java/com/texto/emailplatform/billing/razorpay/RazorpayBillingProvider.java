@@ -121,8 +121,12 @@ public class RazorpayBillingProvider implements BillingProvider {
     public ProviderWebhookEvent parseWebhookEvent(String rawBody) {
         try {
             JsonNode root = objectMapper.readTree(rawBody == null ? "{}" : rawBody);
-            String eventId = firstNonBlank(RazorpayClient.text(root, "id"), syntheticEventId(root));
+            // Razorpay webhook bodies carry no unique event id — the authoritative id is the
+            // X-Razorpay-Event-Id header (applied by the caller). Fall back to a synthetic id so
+            // dedup still works if the header is ever absent.
+            String eventId = syntheticEventId(root);
             String type = RazorpayClient.text(root, "event");
+            Instant eventCreatedAt = epochSeconds(root, "created_at");
             JsonNode payload = root.path("payload");
             JsonNode subscription = payload.path("subscription").path("entity");
             if (subscription.isMissingNode() || subscription.isNull()) {
@@ -159,6 +163,7 @@ public class RazorpayBillingProvider implements BillingProvider {
                     suggestedStatus,
                     RazorpayStatusMapper.isActivationEvent(type),
                     RazorpayStatusMapper.isPaymentFailureEvent(type),
+                    eventCreatedAt,
                     root
             );
         } catch (ApiException exception) {

@@ -50,10 +50,14 @@ class RazorpayWebhookSignatureTest {
 
     @Test
     void parseWebhookEventExtractsSubscriptionFields() throws Exception {
+        // Real Razorpay webhook bodies carry no top-level event id; the unique id is the
+        // X-Razorpay-Event-Id header. parseWebhookEvent therefore derives a synthetic fallback id
+        // from the body and reads created_at for out-of-order detection.
         String body = """
                 {
-                  "id": "evt_abc",
+                  "entity": "event",
                   "event": "subscription.activated",
+                  "created_at": 1700000500,
                   "payload": {
                     "subscription": {
                       "entity": {
@@ -70,13 +74,24 @@ class RazorpayWebhookSignatureTest {
 
         var event = provider.parseWebhookEvent(body);
 
-        assertThat(event.providerEventId()).isEqualTo("evt_abc");
+        assertThat(event.providerEventId()).startsWith("synthetic:subscription.activated:sub_123");
         assertThat(event.type()).isEqualTo("subscription.activated");
         assertThat(event.providerSubscriptionId()).isEqualTo("sub_123");
         assertThat(event.providerCustomerId()).isEqualTo("cust_9");
         assertThat(event.providerStatus()).isEqualTo("active");
         assertThat(event.periodStart()).isNotNull();
         assertThat(event.periodEnd()).isNotNull();
+        assertThat(event.eventCreatedAt()).isEqualTo(java.time.Instant.ofEpochSecond(1700000500L));
+    }
+
+    @Test
+    void withProviderEventIdPrefersHeaderIdForIdempotency() {
+        var event = provider.parseWebhookEvent("{\"event\":\"subscription.activated\"}");
+        var overridden = event.withProviderEventId("evt_header_123");
+
+        assertThat(overridden.providerEventId()).isEqualTo("evt_header_123");
+        // Blank header must not clobber the fallback id.
+        assertThat(event.withProviderEventId(" ").providerEventId()).isEqualTo(event.providerEventId());
     }
 
     private static String hmac(String secret, String payload) {

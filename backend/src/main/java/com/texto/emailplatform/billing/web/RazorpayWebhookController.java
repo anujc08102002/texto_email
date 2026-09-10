@@ -25,9 +25,10 @@ public class RazorpayWebhookController {
     @Operation(summary = "Receive Razorpay subscription webhooks")
     public ResponseEntity<Void> razorpay(
             @RequestBody String rawBody,
-            @RequestHeader(value = "X-Razorpay-Signature", required = false) String signature
+            @RequestHeader(value = "X-Razorpay-Signature", required = false) String signature,
+            @RequestHeader(value = "X-Razorpay-Event-Id", required = false) String eventId
     ) {
-        billingWebhookService.handleRazorpayWebhook(rawBody, signature);
+        billingWebhookService.handleRazorpayWebhook(rawBody, signature, eventId);
         return ResponseEntity.ok().build();
     }
 }

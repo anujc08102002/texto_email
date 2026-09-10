@@ -90,7 +90,7 @@ public class SecurityConfiguration {
                 .toList();
         configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id", "X-Api-Key"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id", "X-Api-Key", "Idempotency-Key"));
         configuration.setExposedHeaders(List.of("X-Request-Id"));
         configuration.setAllowCredentials(true);
 

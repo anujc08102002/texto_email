@@ -75,6 +75,8 @@ email-platform:
     smtp-port: ${MAILPIT_SMTP_PORT:1025}
   domains:
     allow-platform-test-senders: ${ALLOW_PLATFORM_TEST_SENDERS:true}
+  dkim:
+    encryption-key: ${DKIM_KEY_ENCRYPTION_KEY:}
   email:
     max-recipients: ${EMAIL_MAX_RECIPIENTS:50}
     max-attempts: ${EMAIL_MAX_ATTEMPTS:5}

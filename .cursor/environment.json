@@ -1,0 +1,16 @@
+{
+  "name": "Texto Email Platform",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "cd backend && export JAVA_HOME=${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64} && set -a && source ../.env && set +a && java -jar \"$(ls target/email-platform-*.jar | head -1)\" --spring.profiles.active=local"
+    },
+    {
+      "name": "frontend",
+      "command": "cd frontend && npm run dev"
+    }
+  ],
+  "ports": [3000, 8080, 8025, 15672]
+}
