@@ -58,10 +58,16 @@
   --panel: oklch(1 0.002 155);
   --panel-elevated: oklch(1 0 0);
   --inset: oklch(1 0 0 / 0.55);
-  --glow: oklch(0.72 0.08 158 / 0.1);
-  --glow-strong: oklch(0.62 0.1 158 / 0.08);
+  --glow: oklch(0.72 0.08 158 / 0.12);
+  --glow-strong: oklch(0.62 0.1 158 / 0.1);
   --grid-dot: oklch(0.78 0.012 155 / 0.22);
   --tech-label: oklch(0.5 0.025 155);
+
+  /* Brand showcase (auth / marketing surfaces) */
+  --brand-1: oklch(0.52 0.15 158);
+  --brand-2: oklch(0.42 0.13 165);
+  --brand-3: oklch(0.62 0.13 150);
+  --brand-ink: oklch(0.99 0.01 158);
 
   --shadow-xs:
     0 1px 1px oklch(0.25 0.02 155 / 0.03),
@@ -130,10 +136,16 @@
   --panel: oklch(0.18 0.012 155);
   --panel-elevated: oklch(0.21 0.014 155);
   --inset: oklch(1 0 0 / 0.035);
-  --glow: oklch(0.62 0.1 158 / 0.08);
-  --glow-strong: oklch(0.68 0.11 158 / 0.1);
+  --glow: oklch(0.62 0.1 158 / 0.1);
+  --glow-strong: oklch(0.68 0.11 158 / 0.12);
   --grid-dot: oklch(0.4 0.015 155 / 0.22);
   --tech-label: oklch(0.65 0.025 155);
+
+  /* Brand showcase (auth / marketing surfaces) */
+  --brand-1: oklch(0.5 0.15 158);
+  --brand-2: oklch(0.32 0.1 168);
+  --brand-3: oklch(0.58 0.14 150);
+  --brand-ink: oklch(0.99 0.01 158);
 
   --shadow-xs:
     0 1px 2px oklch(0 0 0 / 0.35),
@@ -350,6 +362,33 @@ html.dark .shine-border {
   box-shadow:
     var(--shadow-sm),
     inset 0 1px 0 oklch(1 0 0 / 0.06);
+}
+
+/* Premium brand showcase for auth / marketing panels */
+@utility aurora {
+  background-color: var(--brand-2);
+  background-image:
+    radial-gradient(60% 55% at 12% 8%, color-mix(in oklch, var(--brand-3) 55%, transparent), transparent 62%),
+    radial-gradient(46% 42% at 92% 18%, color-mix(in oklch, var(--info) 40%, transparent), transparent 58%),
+    radial-gradient(72% 62% at 78% 108%, color-mix(in oklch, var(--brand-1) 72%, transparent), transparent 60%),
+    linear-gradient(158deg, var(--brand-1) 0%, var(--brand-2) 58%, oklch(0.24 0.07 168) 100%);
+}
+
+@utility grid-overlay {
+  background-image:
+    linear-gradient(to right, oklch(1 0 0 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(1 0 0 / 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(120% 90% at 50% 0%, black 30%, transparent 78%);
+}
+
+/* Soft sheen used on primary CTAs */
+@utility btn-sheen {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--primary) 86%, white 14%),
+    var(--primary) 62%
+  );
 }
 
 @utility status-pulse {

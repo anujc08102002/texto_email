@@ -17,8 +17,13 @@ export function PageHeader({
   return (
     <div className={cn("mb-1 flex flex-wrap items-end justify-between gap-4 border-b border-border/60 pb-5", className)}>
       <div className="min-w-0">
-        {eyebrow ? <p className="tech-label text-primary">{eyebrow}</p> : null}
-        <h1 className={cn("text-page-heading text-foreground", eyebrow && "mt-1")}>{title}</h1>
+        {eyebrow ? (
+          <p className="tech-label flex items-center gap-2 text-primary">
+            <span className="inline-block h-3 w-[3px] rounded-full bg-primary" aria-hidden />
+            {eyebrow}
+          </p>
+        ) : null}
+        <h1 className={cn("text-page-heading text-foreground", eyebrow && "mt-1.5")}>{title}</h1>
         {description ? <p className="text-body mt-1 max-w-2xl text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
