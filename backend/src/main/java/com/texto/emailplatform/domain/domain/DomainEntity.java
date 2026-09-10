@@ -7,6 +7,13 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * Sending domain.
+ *
+ * <p>{@code status} is authoritative for {@code requireVerifiedSender()}.
+ * {@code verificationStatus} is kept identical by {@link #setStatus(String)} so older
+ * clients that read either field stay consistent. Do not set them independently.
+ */
 @Entity
 @Table(name = "domains")
 public class DomainEntity {
@@ -56,6 +63,10 @@ public class DomainEntity {
         this.status = status;
         this.verificationStatus = status;
         this.updatedAt = Instant.now();
+    }
+
+    public void markVerified() {
+        setStatus(STATUS_VERIFIED);
     }
 
     public UUID getId() {

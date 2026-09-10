@@ -37,6 +37,7 @@ export type AuthUser = {
   email: string;
   role: string;
   organization: string;
+  tenantSlug?: string;
 };
 
 export type AuthSession = {
@@ -224,16 +225,21 @@ export type Domain = {
   domain: string;
   status: string;
   verificationStatus: string;
+  ownershipStatus?: string;
+  spfStatus?: string;
+  dkimStatus?: string;
+  dmarcStatus?: string;
   createdAt: string;
   updatedAt: string;
 };
 
 export type DomainVerificationRecord = {
   id: string;
-  type: "SPF" | "DKIM" | "DMARC" | string;
+  type: "OWNERSHIP" | "SPF" | "DKIM" | "DMARC" | string;
   name: string;
   value: string;
   status: string;
+  detail?: string | null;
   selector: string | null;
   publicKey: string | null;
   verifiedAt: string | null;
@@ -243,6 +249,10 @@ export type DomainVerification = {
   domainId: string;
   domain: string;
   status: string;
+  ownershipStatus?: string;
+  spfStatus?: string;
+  dkimStatus?: string;
+  dmarcStatus?: string;
   records: DomainVerificationRecord[];
 };
 

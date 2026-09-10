@@ -1,56 +1,122 @@
 package com.texto.emailplatform.domain;
 
+import com.texto.emailplatform.common.config.EmailPlatformProperties;
+import com.texto.emailplatform.domain.dns.DkimDnsRecord;
+import com.texto.emailplatform.domain.dns.DmarcRecord;
+import com.texto.emailplatform.domain.dns.DmarcSettings;
+import com.texto.emailplatform.domain.dns.DnsErrorClassifier;
+import com.texto.emailplatform.domain.dns.DnsLookupOutcome;
+import com.texto.emailplatform.domain.dns.DnsTxtQueryResult;
+import com.texto.emailplatform.domain.dns.DomainOwnershipRecord;
+import com.texto.emailplatform.domain.dns.SpfRecord;
 import com.texto.emailplatform.domain.domain.DomainEntity;
 import com.texto.emailplatform.domain.domain.DomainVerificationRecordEntity;
 import com.texto.emailplatform.domain.domain.DomainVerificationRecordRepository;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.UUID;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Generates and checks DNS records for domain ownership and email authentication.
+ *
+ * <p>Checks are presence/match of published TXT records. This service does not recursively
+ * evaluate SPF (RFC 7208 §4.6.4 10-lookup limit) and does not evaluate DMARC (RFC 7489).
+ * Receiving MTAs perform those evaluations. {@code status} on {@link DomainEntity} is
+ * authoritative for sender authorization; {@code verificationStatus} is kept in sync.
+ */
 @Service
 public class DomainVerificationService {
 
-    private static final String DKIM_SELECTOR = "texto";
-
     private final DomainVerificationRecordRepository verificationRecordRepository;
     private final DnsLookupService dnsLookupService;
+    private final EmailPlatformProperties properties;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public DomainVerificationService(
             DomainVerificationRecordRepository verificationRecordRepository,
-            DnsLookupService dnsLookupService
+            DnsLookupService dnsLookupService,
+            EmailPlatformProperties properties
     ) {
         this.verificationRecordRepository = verificationRecordRepository;
         this.dnsLookupService = dnsLookupService;
+        this.properties = properties;
     }
 
     @Transactional
     public List<DomainVerificationRecordEntity> ensureRecords(DomainEntity domain) {
         List<DomainVerificationRecordEntity> existing =
                 verificationRecordRepository.findByDomainIdOrderByTypeAsc(domain.getId());
-        if (!existing.isEmpty()) {
-            return existing;
+        if (existing.isEmpty()) {
+            return verificationRecordRepository.saveAll(createRecords(domain));
         }
-        String token = HexFormat.of().formatHex(randomBytes(8));
-        String verifyMarker = "texto-verify-" + token;
+        return upgradeRecords(domain, existing);
+    }
 
-        KeyPair keyPair = generateKeyPair();
-        String publicKey = Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded());
-        String privateKeyRef = "local-ref:" + UUID.randomUUID();
+    /**
+     * Reusable verification entry point (manual now; scheduler can call later).
+     */
+    @Transactional
+    public boolean verifyRecords(DomainEntity domain) {
+        List<DomainVerificationRecordEntity> records = ensureRecords(domain);
+        boolean allVerified = true;
+        for (DomainVerificationRecordEntity record : records) {
+            boolean verified = verifyOne(record);
+            allVerified = allVerified && verified;
+        }
+        verificationRecordRepository.saveAll(records);
+        return allVerified;
+    }
+
+    @Transactional
+    public void markRecordsVerified(DomainEntity domain) {
+        List<DomainVerificationRecordEntity> records = ensureRecords(domain);
+        records.forEach(DomainVerificationRecordEntity::markVerified);
+        verificationRecordRepository.saveAll(records);
+    }
+
+    public PrivateKey requireDkimPrivateKey(DomainEntity domain) {
+        DomainVerificationRecordEntity dkim = requireDkim(domain);
+        return DkimKeyMaterial.loadPrivateKey(dkim.getPrivateKeyRef());
+    }
+
+    public String dkimSelector(DomainEntity domain) {
+        DomainVerificationRecordEntity dkim = requireDkim(domain);
+        if (dkim.getSelector() == null || dkim.getSelector().isBlank()) {
+            return configuredSelector();
+        }
+        return dkim.getSelector();
+    }
+
+    public static String customerDetail(DomainVerificationRecordEntity record) {
+        return customerMessage(record.getType(), record.getLastError(), record.getStatus());
+    }
+
+    private List<DomainVerificationRecordEntity> createRecords(DomainEntity domain) {
+        String token = HexFormat.of().formatHex(randomBytes(16));
+        DkimKeyMaterial.Generated keys = DkimKeyMaterial.generate();
+        String selector = configuredSelector();
+        DmarcSettings dmarc = properties.getDomains().dmarcSettings();
 
         List<DomainVerificationRecordEntity> records = new ArrayList<>();
         records.add(DomainVerificationRecordEntity.create(
                 domain.getId(),
+                DomainVerificationRecordEntity.TYPE_OWNERSHIP,
+                DomainOwnershipRecord.ownerName(domain.getDomain()),
+                DomainOwnershipRecord.generate(token),
+                null,
+                null,
+                null
+        ));
+        records.add(DomainVerificationRecordEntity.create(
+                domain.getId(),
                 DomainVerificationRecordEntity.TYPE_SPF,
                 domain.getDomain(),
-                "v=spf1 include:_spf.texto.email ~all " + verifyMarker,
+                SpfRecord.generate(properties.getDomains().getSpfInclude(), properties.getDomains().getSpfAllQualifier()),
                 null,
                 null,
                 null
@@ -58,63 +124,236 @@ public class DomainVerificationService {
         records.add(DomainVerificationRecordEntity.create(
                 domain.getId(),
                 DomainVerificationRecordEntity.TYPE_DKIM,
-                DKIM_SELECTOR + "._domainkey." + domain.getDomain(),
-                "v=DKIM1; k=rsa; p=" + publicKey + "; " + verifyMarker,
-                DKIM_SELECTOR,
-                publicKey,
-                privateKeyRef
+                DkimDnsRecord.ownerName(selector, domain.getDomain()),
+                DkimDnsRecord.generate(keys.publicKeyPkcs1()),
+                selector,
+                keys.publicKeyPkcs1(),
+                keys.privateKeyPkcs8()
         ));
         records.add(DomainVerificationRecordEntity.create(
                 domain.getId(),
                 DomainVerificationRecordEntity.TYPE_DMARC,
                 "_dmarc." + domain.getDomain(),
-                "v=DMARC1; p=none; " + verifyMarker,
+                DmarcRecord.generate(dmarc),
                 null,
                 null,
                 null
         ));
-        return verificationRecordRepository.saveAll(records);
+        return records;
     }
 
-    @Transactional
-    public boolean verifyRecords(DomainEntity domain) {
-        List<DomainVerificationRecordEntity> records = ensureRecords(domain);
-        boolean allVerified = true;
-        for (DomainVerificationRecordEntity record : records) {
-            List<String> txt = dnsLookupService.lookupTxt(record.getName());
-            boolean matched = txt.stream().anyMatch(value -> valuesMatch(value, record.getValue()))
-                    || valuesMatch(String.join("", txt), record.getValue());
-            if (matched) {
-                record.markVerified();
-            } else if (txt.isEmpty()) {
-                record.markMissing();
-                allVerified = false;
-            } else {
-                record.markFailed();
-                allVerified = false;
+    private List<DomainVerificationRecordEntity> upgradeRecords(
+            DomainEntity domain,
+            List<DomainVerificationRecordEntity> existing
+    ) {
+        boolean changed = false;
+        if (existing.stream().noneMatch(record -> DomainVerificationRecordEntity.TYPE_OWNERSHIP.equals(record.getType()))) {
+            String token = HexFormat.of().formatHex(randomBytes(16));
+            existing = new ArrayList<>(existing);
+            existing.add(DomainVerificationRecordEntity.create(
+                    domain.getId(),
+                    DomainVerificationRecordEntity.TYPE_OWNERSHIP,
+                    DomainOwnershipRecord.ownerName(domain.getDomain()),
+                    DomainOwnershipRecord.generate(token),
+                    null,
+                    null,
+                    null
+            ));
+            changed = true;
+        }
+        for (DomainVerificationRecordEntity record : existing) {
+            if (DomainVerificationRecordEntity.TYPE_SPF.equals(record.getType())) {
+                String expected = SpfRecord.generate(
+                        properties.getDomains().getSpfInclude(),
+                        properties.getDomains().getSpfAllQualifier()
+                );
+                if (!expected.equals(record.getValue()) || containsOwnershipMarker(record.getValue())) {
+                    record.replaceValue(expected);
+                    changed = true;
+                }
+            } else if (DomainVerificationRecordEntity.TYPE_DKIM.equals(record.getType())) {
+                if (!DkimKeyMaterial.isStoredPrivateKey(record.getPrivateKeyRef())) {
+                    DkimKeyMaterial.Generated keys = DkimKeyMaterial.generate();
+                    String selector = record.getSelector() == null || record.getSelector().isBlank()
+                            ? configuredSelector()
+                            : record.getSelector();
+                    record.replaceDkimMaterial(
+                            DkimDnsRecord.generate(keys.publicKeyPkcs1()),
+                            keys.publicKeyPkcs1(),
+                            keys.privateKeyPkcs8()
+                    );
+                    changed = true;
+                } else if (containsOwnershipMarker(record.getValue())) {
+                    record.replaceValue(DkimDnsRecord.generate(record.getPublicKey()));
+                    changed = true;
+                }
+            } else if (DomainVerificationRecordEntity.TYPE_DMARC.equals(record.getType())) {
+                String expected = DmarcRecord.generate(properties.getDomains().dmarcSettings());
+                if (containsOwnershipMarker(record.getValue()) || record.getValue() == null || record.getValue().isBlank()) {
+                    record.replaceValue(expected);
+                    changed = true;
+                }
             }
         }
-        verificationRecordRepository.saveAll(records);
-        return allVerified;
+        if (changed) {
+            verificationRecordRepository.saveAll(existing);
+            return verificationRecordRepository.findByDomainIdOrderByTypeAsc(domain.getId());
+        }
+        return existing;
     }
 
-    private static boolean valuesMatch(String observed, String expected) {
-        if (observed == null || expected == null) {
+    private boolean verifyOne(DomainVerificationRecordEntity record) {
+        DnsTxtQueryResult lookup = dnsLookupService.lookupTxt(record.getName());
+        if (lookup.outcome() != DnsLookupOutcome.OK) {
+            applyLookupFailure(record, lookup.outcome());
             return false;
         }
-        String left = observed.replace("\"", "").replace(" ", "").trim();
-        String right = expected.replace("\"", "").replace(" ", "").trim();
-        return left.equals(right) || left.contains(right);
+        return switch (record.getType()) {
+            case DomainVerificationRecordEntity.TYPE_OWNERSHIP -> verifyOwnership(record, lookup);
+            case DomainVerificationRecordEntity.TYPE_SPF -> verifySpf(record, lookup);
+            case DomainVerificationRecordEntity.TYPE_DKIM -> verifyDkim(record, lookup);
+            case DomainVerificationRecordEntity.TYPE_DMARC -> verifyDmarc(record, lookup);
+            default -> {
+                record.markFailed("UNSUPPORTED_RECORD");
+                yield false;
+            }
+        };
     }
 
-    private static KeyPair generateKeyPair() {
-        try {
-            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(2048);
-            return generator.generateKeyPair();
-        } catch (Exception exception) {
-            throw new IllegalStateException("Unable to generate DKIM key pair", exception);
+    private boolean verifyOwnership(DomainVerificationRecordEntity record, DnsTxtQueryResult lookup) {
+        String token = DomainOwnershipRecord.extractToken(record.getValue());
+        DomainOwnershipRecord.MatchResult result = DomainOwnershipRecord.match(lookup.txtRecords(), token);
+        if (result.isMatched()) {
+            record.markVerified();
+            return true;
         }
+        if (result.status() == DomainOwnershipRecord.Status.MISSING) {
+            record.markMissing("OWNERSHIP_MISSING");
+        } else {
+            record.markFailed("OWNERSHIP_MISMATCH");
+        }
+        return false;
+    }
+
+    private boolean verifySpf(DomainVerificationRecordEntity record, DnsTxtQueryResult lookup) {
+        SpfRecord.MatchResult result = SpfRecord.match(
+                lookup.txtRecords(),
+                properties.getDomains().getSpfInclude(),
+                properties.getDomains().getSpfAllQualifier()
+        );
+        if (result.isMatched()) {
+            record.markVerified();
+            return true;
+        }
+        switch (result.status()) {
+            case MISSING -> record.markMissing("SPF_MISSING");
+            case MULTIPLE -> record.markFailed("SPF_MULTIPLE");
+            case MALFORMED -> record.markFailed("SPF_MALFORMED");
+            default -> record.markFailed("SPF_MISMATCH");
+        }
+        return false;
+    }
+
+    private boolean verifyDkim(DomainVerificationRecordEntity record, DnsTxtQueryResult lookup) {
+        if (!DkimKeyMaterial.keyPairMatches(record.getPublicKey(), record.getPrivateKeyRef())) {
+            record.markFailed("DKIM_KEY_MISMATCH");
+            return false;
+        }
+        DkimDnsRecord.MatchResult result = DkimDnsRecord.match(lookup.txtRecords(), record.getPublicKey());
+        if (result.isMatched()) {
+            record.markVerified();
+            return true;
+        }
+        switch (result.status()) {
+            case MISSING -> record.markMissing("DKIM_MISSING");
+            case MULTIPLE -> record.markFailed("DKIM_MULTIPLE");
+            case REVOKED -> record.markFailed("DKIM_REVOKED");
+            default -> record.markFailed("DKIM_KEY_MISMATCH");
+        }
+        return false;
+    }
+
+    private boolean verifyDmarc(DomainVerificationRecordEntity record, DnsTxtQueryResult lookup) {
+        DmarcRecord.MatchResult result = DmarcRecord.match(lookup.txtRecords(), properties.getDomains().dmarcSettings());
+        if (result.isMatched()) {
+            record.markVerified();
+            return true;
+        }
+        switch (result.status()) {
+            case MISSING -> record.markMissing("DMARC_MISSING");
+            case MULTIPLE -> record.markFailed("DMARC_MULTIPLE");
+            case MALFORMED -> record.markFailed("DMARC_MALFORMED");
+            default -> record.markFailed("DMARC_MISMATCH");
+        }
+        return false;
+    }
+
+    private static void applyLookupFailure(DomainVerificationRecordEntity record, DnsLookupOutcome outcome) {
+        String code = switch (outcome) {
+            case NXDOMAIN -> "DNS_NXDOMAIN";
+            case TIMEOUT -> "DNS_TIMEOUT";
+            case TEMPORARY_FAILURE -> "DNS_TEMPORARY";
+            case MALFORMED -> "DNS_MALFORMED";
+            default -> "DNS_MISSING";
+        };
+        if (outcome == DnsLookupOutcome.MISSING || outcome == DnsLookupOutcome.NXDOMAIN) {
+            record.markMissing(code);
+        } else {
+            record.markFailed(code);
+        }
+    }
+
+    static String customerMessage(String type, String lastError, String status) {
+        if (lastError == null || lastError.isBlank()) {
+            return null;
+        }
+        return switch (lastError) {
+            case "OWNERSHIP_MISSING" -> "Ownership TXT was not found.";
+            case "OWNERSHIP_MISMATCH" -> "Ownership token did not match.";
+            case "SPF_MISSING" -> "SPF TXT was not found.";
+            case "SPF_MULTIPLE" -> "Multiple SPF records were found. Publish exactly one v=spf1 record.";
+            case "SPF_MALFORMED" -> "The SPF record is not valid.";
+            case "SPF_MISMATCH" -> "The SPF record does not match the required include.";
+            case "DKIM_MISSING" -> "DKIM TXT was not found.";
+            case "DKIM_MULTIPLE" -> "Multiple DKIM TXT records were found for this selector.";
+            case "DKIM_REVOKED" -> "The DKIM public key has been revoked.";
+            case "DKIM_KEY_MISMATCH" -> "The published DKIM public key does not match the active signing key.";
+            case "DMARC_MISSING" -> "DMARC TXT was not found.";
+            case "DMARC_MULTIPLE" -> "Multiple DMARC records were found.";
+            case "DMARC_MALFORMED" -> "The DMARC record is not valid.";
+            case "DMARC_MISMATCH" -> "The DMARC policy does not match the required record.";
+            case "DNS_NXDOMAIN" -> DnsErrorClassifier.customerMessage(DnsLookupOutcome.NXDOMAIN);
+            case "DNS_TIMEOUT" -> DnsErrorClassifier.customerMessage(DnsLookupOutcome.TIMEOUT);
+            case "DNS_TEMPORARY" -> DnsErrorClassifier.customerMessage(DnsLookupOutcome.TEMPORARY_FAILURE);
+            case "DNS_MALFORMED" -> DnsErrorClassifier.customerMessage(DnsLookupOutcome.MALFORMED);
+            case "DNS_MISSING" -> DnsErrorClassifier.customerMessage(DnsLookupOutcome.MISSING);
+            default -> DomainVerificationRecordEntity.STATUS_MISSING.equals(status)
+                    ? "This DNS record was not found."
+                    : "This DNS record could not be verified.";
+        };
+    }
+
+    private DomainVerificationRecordEntity requireDkim(DomainEntity domain) {
+        return ensureRecords(domain).stream()
+                .filter(record -> DomainVerificationRecordEntity.TYPE_DKIM.equals(record.getType()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("DKIM record is missing for " + domain.getDomain()));
+    }
+
+    private String configuredSelector() {
+        String selector = properties.getDomains().getDkimSelector();
+        if (selector == null || selector.isBlank()) {
+            return "texto";
+        }
+        return selector.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean containsOwnershipMarker(String value) {
+        if (value == null) {
+            return false;
+        }
+        String lower = value.toLowerCase(Locale.ROOT);
+        return lower.contains("texto-verify-") || lower.contains("texto-domain-verification=");
     }
 
     private byte[] randomBytes(int length) {

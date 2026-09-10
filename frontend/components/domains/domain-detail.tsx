@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { HealthIndicator } from "@/components/ops/health-indicator";
+import { DomainAuthStatus } from "@/components/domains/domain-auth-status";
 import { SectionPanel } from "@/components/ops/section-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -152,12 +152,8 @@ export function DomainDetail({ domainId }: { domainId: string }) {
           </div>
         }
       >
-        <div className="flex flex-wrap items-center gap-3">
-          <HealthIndicator tone={verified ? "operational" : "degraded"} />
-          <Badge variant={verified ? "success" : "warning"}>
-            {domain.verificationStatus || domain.status}
-          </Badge>
-          <span className="font-mono text-xs text-muted-foreground">Status {domain.status}</span>
+        <div className="mt-4">
+          <DomainAuthStatus domain={domain} verification={verification} />
         </div>
       </SectionPanel>
 
@@ -174,7 +170,7 @@ export function DomainDetail({ domainId }: { domainId: string }) {
         </Step>
         <Step index={3} title="Verify" done={verified} active={hasRecords && !verified}>
           <p className="mb-3 text-sm text-muted-foreground">
-            After DNS propagates, run verification to confirm SPF, DKIM, and DMARC.
+            After DNS propagates, run verification to confirm ownership, SPF, DKIM, and DMARC.
           </p>
           <Button type="button" size="sm" loading={verifying} onClick={() => void onVerify()}>
             Run verification
@@ -197,6 +193,7 @@ export function DomainDetail({ domainId }: { domainId: string }) {
                     <span className="font-mono text-xs">{record.name}</span>
                     <Badge variant="secondary">{record.status}</Badge>
                   </div>
+                  {record.detail ? <p className="mt-1 text-xs text-muted-foreground">{record.detail}</p> : null}
                   <CopyButton value={record.value} label="Copy DNS value" />
                 </div>
                 <CodeBlock code={record.value} className="mt-2" copyable={false} />

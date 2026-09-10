@@ -14,6 +14,7 @@ public class DomainVerificationRecordEntity {
     public static final String TYPE_SPF = "SPF";
     public static final String TYPE_DKIM = "DKIM";
     public static final String TYPE_DMARC = "DMARC";
+    public static final String TYPE_OWNERSHIP = "OWNERSHIP";
 
     public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_VERIFIED = "VERIFIED";
@@ -47,6 +48,9 @@ public class DomainVerificationRecordEntity {
 
     @Column(name = "private_key_ref")
     private String privateKeyRef;
+
+    @Column(name = "last_error", length = 64)
+    private String lastError;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -83,6 +87,7 @@ public class DomainVerificationRecordEntity {
     public void markVerified() {
         this.status = STATUS_VERIFIED;
         this.verifiedAt = Instant.now();
+        this.lastError = null;
     }
 
     public void markFailed() {
@@ -90,9 +95,41 @@ public class DomainVerificationRecordEntity {
         this.verifiedAt = null;
     }
 
+    public void markFailed(String errorCode) {
+        markFailed();
+        this.lastError = errorCode;
+    }
+
     public void markMissing() {
         this.status = STATUS_MISSING;
         this.verifiedAt = null;
+    }
+
+    public void markMissing(String errorCode) {
+        markMissing();
+        this.lastError = errorCode;
+    }
+
+    public void replaceDkimMaterial(String dnsValue, String publicKey, String privateKeyRef) {
+        this.value = dnsValue;
+        this.publicKey = publicKey;
+        this.privateKeyRef = privateKeyRef;
+    }
+
+    public void replaceValue(String value) {
+        this.value = value;
+    }
+
+    public void setLastError(String lastError) {
+        this.lastError = lastError;
+    }
+
+    public void clearLastError() {
+        this.lastError = null;
+    }
+
+    public String getLastError() {
+        return lastError;
     }
 
     public UUID getId() {

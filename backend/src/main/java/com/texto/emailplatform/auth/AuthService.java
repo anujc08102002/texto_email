@@ -115,7 +115,14 @@ public class AuthService {
     public AuthUserResponse currentUser(DashboardPrincipal principal) {
         TenantEntity tenant = tenantRepository.findById(principal.tenantId())
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED.value(), "UNAUTHENTICATED", "Authentication is required"));
-        return new AuthUserResponse(principal.userId(), principal.tenantId(), principal.email(), principal.role(), tenant.getName());
+        return new AuthUserResponse(
+                principal.userId(),
+                principal.tenantId(),
+                principal.email(),
+                principal.role(),
+                tenant.getName(),
+                tenant.getSlug()
+        );
     }
 
     private AuthResponse issueSession(UserEntity user, TenantEntity tenant) {
@@ -131,7 +138,8 @@ public class AuthService {
                 tenant.getId(),
                 user.getEmail(),
                 user.getRole(),
-                tenant.getName()
+                tenant.getName(),
+                tenant.getSlug()
         );
         return AuthResponse.bearer(token, profile);
     }

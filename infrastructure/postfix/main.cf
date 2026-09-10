@@ -1,0 +1,53 @@
+# Controlled local Postfix for Texto development and integration tests.
+# Public Internet delivery is disabled. Destinations other than texto.test are rejected.
+
+smtpd_banner = $myhostname ESMTP
+biff = no
+append_dot_mydomain = no
+readme_directory = no
+compatibility_level = 3.6
+maillog_file = /dev/stdout
+alias_maps =
+alias_database =
+
+myhostname = mail.texto.test
+mydomain = texto.test
+myorigin = $mydomain
+inet_interfaces = all
+inet_protocols = ipv4
+
+# Do not treat texto.test as Unix local mail — virtual mailbox only.
+mydestination = localhost
+local_transport = error:local unix delivery is disabled
+local_recipient_maps =
+
+mynetworks = 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+relay_domains =
+relayhost =
+
+# Authorized destinations only (texto.test virtual mailbox). Do not permit
+# mynetworks clients to relay to arbitrary Internet recipients.
+smtpd_relay_restrictions = reject_unauth_destination
+smtpd_recipient_restrictions = reject_unauth_destination
+smtpd_sasl_auth_enable = no
+
+# Safety net: never perform downstream MX delivery from this development MTA.
+default_transport = error:public Internet delivery is disabled in this development MTA
+relay_transport = error:public Internet delivery is disabled in this development MTA
+
+virtual_mailbox_domains = texto.test
+virtual_mailbox_base = /var/mail
+virtual_mailbox_maps = static:texto.test/
+virtual_alias_maps =
+virtual_minimum_uid = 100
+virtual_uid_maps = static:100
+virtual_gid_maps = static:101
+virtual_mailbox_limit = 0
+
+# Local integration uses plaintext SMTP. Production TLS is configured in the application, not here.
+smtpd_tls_security_level = none
+smtp_tls_security_level = none
+
+enable_original_recipient = yes
+recipient_delimiter =
+home_mailbox =

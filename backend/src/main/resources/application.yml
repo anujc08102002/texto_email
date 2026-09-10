@@ -4,7 +4,7 @@ spring:
   profiles:
     default: local
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/email_platform}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/email_platform}
     username: ${DATABASE_USERNAME:email_platform}
     password: ${DATABASE_PASSWORD:email_platform}
   jpa:
@@ -73,8 +73,28 @@ email-platform:
   mailpit:
     host: ${MAILPIT_HOST:localhost}
     smtp-port: ${MAILPIT_SMTP_PORT:1025}
+  mta:
+    implementation: ${MTA_IMPLEMENTATION:mailpit}
+    smtp:
+      host: ${MTA_SMTP_HOST:${MAILPIT_HOST:localhost}}
+      port: ${MTA_SMTP_PORT:${MAILPIT_SMTP_PORT:1025}}
+      connection-timeout-ms: ${MTA_SMTP_CONNECTION_TIMEOUT_MS:5000}
+      read-timeout-ms: ${MTA_SMTP_READ_TIMEOUT_MS:5000}
+      write-timeout-ms: ${MTA_SMTP_WRITE_TIMEOUT_MS:5000}
+      ehlo-hostname: ${MTA_SMTP_EHLO_HOSTNAME:texto.local}
+      starttls:
+        enabled: ${MTA_SMTP_STARTTLS_ENABLED:false}
+        required: ${MTA_SMTP_STARTTLS_REQUIRED:false}
+      ssl:
+        enabled: ${MTA_SMTP_SSL_ENABLED:false}
   domains:
     allow-platform-test-senders: ${ALLOW_PLATFORM_TEST_SENDERS:true}
+    spf-include: ${SPF_INCLUDE:_spf.texto.email}
+    spf-all-qualifier: ${SPF_ALL_QUALIFIER:~}
+    dkim-selector: ${DKIM_SELECTOR:texto}
+    dmarc-policy: ${DMARC_POLICY:none}
+    verify-max-per-minute: ${DOMAIN_VERIFY_MAX_PER_MINUTE:10}
+    dns-timeout-ms: ${DNS_TIMEOUT_MS:2000}
   email:
     max-recipients: ${EMAIL_MAX_RECIPIENTS:50}
     max-attempts: ${EMAIL_MAX_ATTEMPTS:5}

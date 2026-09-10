@@ -3,13 +3,15 @@ package com.texto.emailplatform.delivery;
 import java.util.List;
 
 /**
- * Abstraction over outbound email providers. Mailpit for local; Postfix later.
+ * Abstraction over outbound email delivery. {@link SmtpDeliveryEngine} composes MIME and DKIM,
+ * then submits via {@code MtaClient} (Mailpit or Postfix).
  */
 public interface DeliveryEngine {
 
     DeliveryResult deliver(DeliveryRequest request);
 
     record DeliveryRequest(
+            java.util.UUID tenantId,
             String from,
             List<String> to,
             List<String> cc,

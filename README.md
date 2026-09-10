@@ -29,7 +29,7 @@ Backend modules (packages inside one application):
 | `email` | Future transactional/bulk sending |
 | `template` | Future templates |
 | `queue` | RabbitMQ topology for outbound and bounce traffic |
-| `delivery` | Mailpit-only local destination configuration |
+| `delivery` | SMTP MTA client (`mailpit` local mailbox; `postfix` controlled local MTA) |
 | `suppression` | Future suppression lists |
 | `bounce` | Future bounce processing |
 | `analytics` | Future delivery analytics |
@@ -68,13 +68,13 @@ From the repository root:
 docker compose --env-file .env -f infrastructure/docker-compose.yml up -d
 ```
 
-Wait until Postgres, RabbitMQ, Redis, and Mailpit are healthy:
+Wait until Postgres, RabbitMQ, Redis, Mailpit, and Postfix are healthy:
 
 ```bash
 docker compose --env-file .env -f infrastructure/docker-compose.yml ps
 ```
 
-If host port 5432 is already used by a local PostgreSQL install, stop that service or change the published port in `infrastructure/docker-compose.yml` and `DATABASE_URL`.
+Compose publishes Postgres on host port **5433** by default so it does not collide with a local PostgreSQL install on 5432. Override with `POSTGRES_HOST_PORT` in `.env` if needed, and keep `DATABASE_URL` on the same host port.
 
 ## Backend startup
 
@@ -142,23 +142,25 @@ npm run build
 | Plans | http://localhost:8080/api/v1/plans | Public, database-backed |
 | Health | http://localhost:8080/actuator/health | Application, PostgreSQL, RabbitMQ, Redis |
 | OpenAPI / Swagger | http://localhost:8080/swagger-ui.html | Enabled on the `local` profile only |
-| PostgreSQL | localhost:5432 | Bound to 127.0.0.1 |
+| PostgreSQL | localhost:5433 | Bound to 127.0.0.1; container still listens on 5432 |
 | RabbitMQ AMQP | localhost:5672 | Bound to 127.0.0.1 |
 | RabbitMQ management | http://localhost:15672 | Bound to 127.0.0.1 |
 | Redis | localhost:6379 | Bound to 127.0.0.1 |
-| Mailpit SMTP | localhost:1025 | Local email sink only |
+| Mailpit SMTP | localhost:1025 | Local mailbox sink only |
 | Mailpit UI | http://localhost:8025 | Bound to 127.0.0.1 |
+| Postfix SMTP | localhost:2525 | Controlled local MTA (`texto.test` only; bound to 127.0.0.1) |
 
 ## Environment variables
 
 | Variable | Used by | Local default |
 | --- | --- | --- |
-| `DATABASE_URL` | Backend | `jdbc:postgresql://localhost:5432/email_platform` |
+| `DATABASE_URL` | Backend | `jdbc:postgresql://localhost:5433/email_platform` |
 | `DATABASE_USERNAME` | Backend | `email_platform` |
 | `DATABASE_PASSWORD` | Backend | `email_platform` |
 | `POSTGRES_DB` | Docker Postgres | `email_platform` |
 | `POSTGRES_USER` | Docker Postgres | `email_platform` |
 | `POSTGRES_PASSWORD` | Docker Postgres | `email_platform` |
+| `POSTGRES_HOST_PORT` | Docker Postgres | `5433` (host publish; container port stays 5432) |
 | `RABBITMQ_HOST` | Backend | `localhost` |
 | `RABBITMQ_PORT` | Backend | `5672` |
 | `RABBITMQ_USERNAME` | Backend | `email_platform` |
@@ -169,6 +171,9 @@ npm run build
 | `REDIS_PORT` | Backend | `6379` |
 | `MAILPIT_HOST` | Backend | `localhost` |
 | `MAILPIT_SMTP_PORT` | Backend | `1025` |
+| `MTA_IMPLEMENTATION` | Backend | `mailpit` (`postfix` for controlled local Postfix) |
+| `MTA_SMTP_HOST` | Backend | `localhost` |
+| `MTA_SMTP_PORT` | Backend | `1025` (Mailpit) / `2525` (local Postfix) |
 | `CORS_ALLOWED_ORIGINS` | Backend | `http://localhost:3000` |
 | `NEXT_PUBLIC_API_BASE_URL` | Frontend | `http://localhost:8080` |
 | `BILLING_PROVIDER` | Backend | `noop` (`razorpay` for TEST billing) |
@@ -187,7 +192,7 @@ Transactional send acceptance is asynchronous:
 
 1. `POST /api/v1/emails` (optional `Idempotency-Key`) authorizes, validates sender/template, splits suppressed vs deliverable recipients, consumes **one email unit per deliverable recipient**, persists `QUEUED`, writes an outbox event `EMAIL_DELIVERY_REQUESTED`, and emits `email.queued`.
 2. `OutboxPublisher` polls unpublished outbox rows and publishes JSON jobs `{messageId, tenantId, attempt}` to RabbitMQ (`email.delivery.exchange` / `email.delivery.queue`).
-3. `EmailDeliveryWorker` transitions `QUEUED`/`DEFERRED` → `PROCESSING` → `SENDING`, records `delivery_attempts`, and calls `DeliveryEngine` (Mailpit locally; Postfix not implemented).
+3. `EmailDeliveryWorker` transitions `QUEUED`/`DEFERRED` → `PROCESSING` → `SENDING`, records `delivery_attempts`, and calls `DeliveryEngine`. `SmtpDeliveryEngine` composes MIME, DKIM-signs, and submits via `MtaClient` (`mailpit` by default; `postfix` for controlled local Postfix). Public Internet delivery is not enabled. See [docs/mta-transport.md](docs/mta-transport.md).
 4. Outcomes: `DELIVERED`, temporary `DEFERRED` with TTL retry queues (30s → 2h), or permanent `FAILED` / `BOUNCED` (550), with matching webhooks.
 
 Config under `email-platform.email`: `max-recipients`, `max-attempts`, `outbox-poll-ms`, `rate-limit-per-minute`.

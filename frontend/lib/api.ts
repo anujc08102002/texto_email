@@ -28,15 +28,36 @@ function headers(contentType?: string): HeadersInit {
   return result;
 }
 
+async function readPayload<T>(response: Response): Promise<ApiResponse<T>> {
+  const raw = await response.text();
+  try {
+    return JSON.parse(raw) as ApiResponse<T>;
+  } catch {
+    throw new ApiClientError(
+      raw?.trim() ? `API error (${response.status})` : "Unable to reach the API.",
+      response.status || 0,
+    );
+  }
+}
+
+function errorMessage(payload: ApiResponse<unknown>, fallback: string): string {
+  const message = payload.error?.message ?? fallback;
+  const details = payload.error?.details;
+  if (!details?.length) {
+    return message;
+  }
+  const extra = details
+    .map((detail) => (detail.field ? `${detail.field}: ${detail.message}` : detail.message))
+    .filter(Boolean)
+    .join("; ");
+  return extra ? `${message} (${extra})` : message;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as ApiResponse<T>;
+  const payload = await readPayload<T>(response);
 
   if (!response.ok || !payload.success || payload.data === null) {
-    throw new ApiClientError(
-      payload.error?.message ?? "Request failed",
-      response.status,
-      payload.error?.code,
-    );
+    throw new ApiClientError(errorMessage(payload, "Request failed"), response.status, payload.error?.code);
   }
 
   return payload.data;
@@ -44,68 +65,58 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 /** For endpoints that return success with null data (e.g. logout). */
 async function parseEmpty(response: Response): Promise<void> {
-  const payload = (await response.json()) as ApiResponse<unknown>;
+  const payload = await readPayload<unknown>(response);
   if (!response.ok || !payload.success) {
-    throw new ApiClientError(
-      payload.error?.message ?? "Request failed",
-      response.status,
-      payload.error?.code,
-    );
+    throw new ApiClientError(errorMessage(payload, "Request failed"), response.status, payload.error?.code);
+  }
+}
+
+async function request(path: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, { ...init, cache: "no-store" });
+  } catch {
+    throw new ApiClientError("Unable to reach the API.", 0);
   }
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: headers(),
-    cache: "no-store",
-  });
-  return parseResponse<T>(response);
+  return parseResponse<T>(await request(path, { headers: headers() }));
 }
 
 export async function apiPost<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { ...headers("application/json"), ...extraHeaders },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
-  return parseResponse<T>(response);
+  return parseResponse<T>(
+    await request(path, {
+      method: "POST",
+      headers: { ...headers("application/json"), ...extraHeaders },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
 }
 
 export async function apiPostEmpty(path: string, body?: unknown): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: headers("application/json"),
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
-  return parseEmpty(response);
+  await parseEmpty(
+    await request(path, {
+      method: "POST",
+      headers: headers("application/json"),
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
 }
 
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "PATCH",
-    headers: headers("application/json"),
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
-  return parseResponse<T>(response);
+  return parseResponse<T>(
+    await request(path, {
+      method: "PATCH",
+      headers: headers("application/json"),
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "DELETE",
-    headers: headers(),
-    cache: "no-store",
-  });
-  return parseResponse<T>(response);
+  return parseResponse<T>(await request(path, { method: "DELETE", headers: headers() }));
 }
 
 export async function apiDeleteEmpty(path: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "DELETE",
-    headers: headers(),
-    cache: "no-store",
-  });
-  return parseEmpty(response);
+  await parseEmpty(await request(path, { method: "DELETE", headers: headers() }));
 }

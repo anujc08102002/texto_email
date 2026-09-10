@@ -16,8 +16,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiClientError } from "@/lib/api";
 import { useStoredUser } from "@/hooks/use-stored-user";
+import { fetchCurrentUser } from "@/services/auth";
+import { listDomains } from "@/services/domains";
 import { getUsage } from "@/services/platform";
 import { sendEmail } from "@/services/emails";
+
+function platformFrom(slug?: string | null) {
+  if (!slug) return "";
+  return `noreply@${slug}.texto.test`;
+}
 
 function newIdempotencyKey() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -29,13 +36,8 @@ function newIdempotencyKey() {
 export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
   const router = useRouter();
   const user = useStoredUser();
-  const defaultFrom = user?.organization
-    ? `noreply@${user.organization
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") || "workspace"}.texto.test`
-    : "";
-  const [from, setFrom] = useState(defaultFrom);
+  const [from, setFrom] = useState("");
+  const [fromOptions, setFromOptions] = useState<string[]>([]);
   const [to, setTo] = useState<string[]>(defaultTo ? [defaultTo] : []);
   const [cc, setCc] = useState<string[]>([]);
   const [bcc, setBcc] = useState<string[]>([]);
@@ -54,6 +56,32 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
     subject.trim().length > 0 &&
     body.trim().length > 0 &&
     !quotaBlocked;
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([fetchCurrentUser().catch(() => user), listDomains().catch(() => [])])
+      .then(([profile, domains]) => {
+        if (cancelled) return;
+        const identities: string[] = [];
+        const slug = profile?.tenantSlug;
+        const platform = platformFrom(slug);
+        if (platform) identities.push(platform);
+        for (const domain of domains) {
+          if (domain.status === "VERIFIED" || domain.verificationStatus === "VERIFIED") {
+            const address = `noreply@${domain.domain}`;
+            if (!identities.includes(address)) identities.push(address);
+          }
+        }
+        setFromOptions(identities);
+        setFrom((current) => (current.trim() ? current : identities[0] ?? platformFrom(user?.tenantSlug)));
+      })
+      .catch(() => {
+        /* optional UX */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     getUsage()
@@ -127,10 +155,22 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
               id="from"
               value={from}
               onChange={(event) => setFrom(event.target.value)}
+              list="from-identities"
               placeholder="noreply@your-domain.com"
               className="font-mono text-sm"
               required
             />
+            {fromOptions.length > 0 ? (
+              <datalist id="from-identities">
+                {fromOptions.map((address) => (
+                  <option key={address} value={address} />
+                ))}
+              </datalist>
+            ) : null}
+            <p className="text-[11px] text-muted-foreground">
+              Local sends use <span className="font-mono">noreply@{"{slug}"}.texto.test</span>, which is auto-verified
+              with SPF, DKIM, and DMARC.
+            </p>
           </div>
           <RecipientChips id="to" label="To" values={to} onChange={setTo} required />
           <div className="grid gap-4 sm:grid-cols-2">

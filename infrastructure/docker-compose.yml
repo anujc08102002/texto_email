@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-email_platform}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-email_platform}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -69,8 +69,26 @@ services:
       timeout: 5s
       retries: 10
 
+  postfix:
+    build:
+      context: ./postfix
+      dockerfile: Dockerfile
+    image: email-platform-postfix:local
+    container_name: email-platform-postfix
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2525:25"
+    volumes:
+      - postfix_mail:/var/mail
+    healthcheck:
+      test: ["CMD-SHELL", "postfix status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:
   rabbitmq_data:
   redis_data:
   mailpit_data:
+  postfix_mail:

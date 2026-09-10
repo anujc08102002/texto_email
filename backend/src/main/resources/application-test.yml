@@ -24,8 +24,17 @@ email-platform:
     api-docs-public: false
   cors:
     allowed-origins: http://localhost:3000
+  mta:
+    implementation: mailpit
+    smtp:
+      starttls:
+        enabled: false
+        required: false
+      ssl:
+        enabled: false
   domains:
     allow-platform-test-senders: true
+    verify-max-per-minute: 60
   email:
     max-recipients: 50
     max-attempts: 5

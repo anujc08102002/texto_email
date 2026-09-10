@@ -2,6 +2,7 @@ package com.texto.emailplatform;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -129,6 +130,7 @@ class PlatformFoundationIT {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.token").isNotEmpty())
                 .andExpect(jsonPath("$.data.user.email").value(email.toLowerCase()))
+                .andExpect(jsonPath("$.data.user.tenantSlug").value("get-set-go-world"))
                 .andReturn();
 
         String token = com.jayway.jsonpath.JsonPath.read(registerResult.getResponse().getContentAsString(), "$.data.token");
@@ -155,5 +157,16 @@ class PlatformFoundationIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("QUEUED"))
                 .andExpect(jsonPath("$.data.recipient").value(email));
+    }
+
+    @Test
+    void corsAllowsIdempotencyKeyFromLocalFrontend() throws Exception {
+        mockMvc.perform(options("/api/v1/emails")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
+                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsStringIgnoringCase("idempotency-key")));
     }
 }

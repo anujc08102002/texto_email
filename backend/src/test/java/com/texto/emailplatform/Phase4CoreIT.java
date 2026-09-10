@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.texto.emailplatform.delivery.DeliveryEngine;
 import com.texto.emailplatform.domain.DnsLookupService;
+import com.texto.emailplatform.domain.dns.DnsTxtQueryResult;
 import com.texto.emailplatform.email.EmailDeliveryWorker;
 import java.util.List;
 import java.util.Map;
@@ -77,8 +78,13 @@ class Phase4CoreIT {
     @BeforeEach
     void stubDns() {
         txtRecords.clear();
-        when(dnsLookupService.lookupTxt(anyString())).thenAnswer(invocation ->
-                txtRecords.getOrDefault(invocation.getArgument(0), List.of()));
+        when(dnsLookupService.lookupTxt(anyString())).thenAnswer(invocation -> {
+            List<String> values = txtRecords.get(invocation.getArgument(0));
+            if (values == null || values.isEmpty()) {
+                return DnsTxtQueryResult.missing();
+            }
+            return DnsTxtQueryResult.ok(values);
+        });
         when(deliveryEngine.deliver(any())).thenReturn(
                 DeliveryEngine.DeliveryResult.success("<id@texto.local>", "250 Ok")
         );
@@ -164,14 +170,21 @@ class Phase4CoreIT {
         MvcResult verification = mockMvc.perform(get("/api/v1/domains/" + domainId + "/verification")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.records.length()").value(3))
+                .andExpect(jsonPath("$.data.records.length()").value(4))
                 .andExpect(jsonPath("$.data.records[0].privateKeyRef").doesNotExist())
                 .andReturn();
 
         String body = verification.getResponse().getContentAsString();
         List<Map<String, Object>> records = JsonPath.read(body, "$.data.records");
+        assertThat(records).hasSize(4);
         for (Map<String, Object> record : records) {
-            txtRecords.put(String.valueOf(record.get("name")), List.of(String.valueOf(record.get("value"))));
+            String type = String.valueOf(record.get("type"));
+            String value = String.valueOf(record.get("value"));
+            assertThat(value).doesNotContain("texto-verify-");
+            if (!"OWNERSHIP".equals(type)) {
+                assertThat(value).doesNotContain("texto-domain-verification=");
+            }
+            txtRecords.put(String.valueOf(record.get("name")), List.of(value));
         }
 
         mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
@@ -206,6 +219,146 @@ class Phase4CoreIT {
                                 """.formatted(slug)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("QUEUED"));
+    }
+
+    @Test
+    void platformTestDomainIsProvisionedWithDkimRecords() throws Exception {
+        String token = register();
+        String slug = tenantSlug(token);
+        String platformDomain = slug + ".texto.test";
+
+        MvcResult listed = mockMvc.perform(get("/api/v1/domains").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].domain").value(platformDomain))
+                .andExpect(jsonPath("$.data[0].status").value("VERIFIED"))
+                .andReturn();
+        String domainId = JsonPath.read(listed.getResponse().getContentAsString(), "$.data[0].id");
+
+        mockMvc.perform(get("/api/v1/domains/" + domainId + "/verification")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records.length()").value(4))
+                .andExpect(jsonPath("$.data.records[0].type").value("DKIM"))
+                .andExpect(jsonPath("$.data.records[0].selector").value("texto"))
+                .andExpect(jsonPath("$.data.records[0].privateKeyRef").doesNotExist())
+                .andExpect(jsonPath("$.data.records[0].status").value("VERIFIED"))
+                .andExpect(jsonPath("$.data.records[0].value").value(org.hamcrest.Matchers.containsString("v=DKIM1; k=rsa; p=")));
+    }
+
+    @Test
+    void dnsAuthenticationRejectsIncompleteAndMismatchedRecords() throws Exception {
+        String token = register();
+        String other = register();
+
+        MvcResult created = mockMvc.perform(post("/api/v1/domains")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"domain":"auth.example-phase8.test"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        String domainId = JsonPath.read(created.getResponse().getContentAsString(), "$.data.id");
+
+        MvcResult verification = mockMvc.perform(get("/api/v1/domains/" + domainId + "/verification")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ownershipStatus").value("PENDING"))
+                .andReturn();
+        Map<String, Map<String, Object>> byType = recordsByType(verification);
+
+        mockMvc.perform(get("/api/v1/domains/" + domainId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + other))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/domains/" + domainId + "/verification")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + other))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + other))
+                .andExpect(status().isNotFound());
+
+        Map<String, Object> ownership = byType.get("OWNERSHIP");
+        txtRecords.put(String.valueOf(ownership.get("name")), List.of("texto-domain-verification=deadbeef"));
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.ownershipStatus").value("FAILED"));
+
+        txtRecords.put(String.valueOf(ownership.get("name")), List.of(String.valueOf(ownership.get("value"))));
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+
+        mockMvc.perform(post("/api/v1/emails")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "from":"ops@auth.example-phase8.test",
+                                  "to":"person@example.com",
+                                  "subject":"Blocked",
+                                  "text":"body"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("UNVERIFIED_SENDER_DOMAIN"));
+
+        Map<String, Object> spf = byType.get("SPF");
+        txtRecords.put(String.valueOf(spf.get("name")), List.of(
+                "v=spf1 include:_spf.texto.email ~all",
+                "v=spf1 include:elsewhere.example ~all"
+        ));
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.spfStatus").value("FAILED"));
+
+        txtRecords.put(String.valueOf(spf.get("name")), List.of("v=spf1 include:_spf.texto.email ~all extra"));
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.spfStatus").value("FAILED"));
+
+        Map<String, Object> dkim = byType.get("DKIM");
+        txtRecords.put(String.valueOf(dkim.get("name")), List.of("v=DKIM1; k=rsa; p=AAAA"));
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dkimStatus").value("FAILED"));
+
+        Map<String, Object> dmarc = byType.get("DMARC");
+        txtRecords.put(String.valueOf(dmarc.get("name")), List.of("v=DMARC1; pct=100"));
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dmarcStatus").value("FAILED"));
+
+        when(dnsLookupService.lookupTxt(anyString())).thenReturn(DnsTxtQueryResult.nxdomain());
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+
+        when(dnsLookupService.lookupTxt(anyString())).thenReturn(DnsTxtQueryResult.temporaryFailure());
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+
+        when(dnsLookupService.lookupTxt(anyString())).thenReturn(DnsTxtQueryResult.malformed());
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+
+        when(dnsLookupService.lookupTxt(anyString())).thenReturn(DnsTxtQueryResult.timeout());
+        mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+        stubDns();
     }
 
     @Test
@@ -404,5 +557,15 @@ class Phase4CoreIT {
                 starterPlanId,
                 UUID.fromString(tenantId)
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Map<String, Object>> recordsByType(MvcResult verification) throws Exception {
+        List<Map<String, Object>> records = JsonPath.read(verification.getResponse().getContentAsString(), "$.data.records");
+        Map<String, Map<String, Object>> byType = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> record : records) {
+            byType.put(String.valueOf(record.get("type")), record);
+        }
+        return byType;
     }
 }

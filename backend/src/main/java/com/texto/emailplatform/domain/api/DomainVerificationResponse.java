@@ -8,6 +8,10 @@ public record DomainVerificationResponse(
         UUID domainId,
         String domain,
         String status,
+        String ownershipStatus,
+        String spfStatus,
+        String dkimStatus,
+        String dmarcStatus,
         List<VerificationRecordResponse> records
 ) {
     public record VerificationRecordResponse(
@@ -16,6 +20,7 @@ public record DomainVerificationResponse(
             String name,
             String value,
             String status,
+            String detail,
             String selector,
             String publicKey,
             Instant verifiedAt

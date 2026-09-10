@@ -1,8 +1,8 @@
 package com.texto.emailplatform.domain;
 
-import java.util.List;
+import com.texto.emailplatform.domain.dns.DnsTxtQueryResult;
 
 public interface DnsLookupService {
 
-    List<String> lookupTxt(String name);
+    DnsTxtQueryResult lookupTxt(String name);
 }

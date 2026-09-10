@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { SectionPanel } from "@/components/ops/section-panel";
 import { ApiClientError } from "@/lib/api";
+import { DomainAuthStatus } from "@/components/domains/domain-auth-status";
 import { createDomain, getDomainVerification, listDomains, verifyDomain } from "@/services/domains";
 import type { Domain, DomainVerification } from "@/types/api";
 import { cn } from "@/lib/utils";
@@ -107,7 +108,8 @@ export function DomainsManager() {
             <DialogHeader>
               <DialogTitle>Add sending domain</DialogTitle>
               <DialogDescription>
-                We generate SPF, DKIM, and DMARC records. Verification checks live DNS — it does not mark verified on click.
+                We generate a dedicated ownership TXT plus separate SPF, DKIM, and DMARC records.
+                Verification checks live DNS. The platform test domain is provisioned automatically.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-1.5">
@@ -219,24 +221,30 @@ export function DomainsManager() {
             }
           >
             {verification ? (
-              <ul className="space-y-3">
-                {verification.records.map((record) => (
-                  <li key={record.id} className="rounded-lg border border-border/70 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold">
-                        {record.type} · <span className="font-mono text-xs font-normal">{record.name}</span>
-                      </p>
-                      <Badge variant={record.status === "VERIFIED" ? "success" : "secondary"}>{record.status}</Badge>
-                    </div>
-                    <div className="mt-2 flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <CodeBlock code={record.value} />
+              <div className="space-y-4">
+                <DomainAuthStatus verification={verification} />
+                <ul className="space-y-3">
+                  {verification.records.map((record) => (
+                    <li key={record.id} className="rounded-lg border border-border/70 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold">
+                          {record.type} · <span className="font-mono text-xs font-normal">{record.name}</span>
+                        </p>
+                        <Badge variant={record.status === "VERIFIED" ? "success" : "secondary"}>{record.status}</Badge>
                       </div>
-                      <CopyButton value={record.value} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                      {record.detail ? (
+                        <p className="mt-1 text-xs text-muted-foreground">{record.detail}</p>
+                      ) : null}
+                      <div className="mt-2 flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <CodeBlock code={record.value} />
+                        </div>
+                        <CopyButton value={record.value} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">Select a domain to view DNS records.</p>
             )}

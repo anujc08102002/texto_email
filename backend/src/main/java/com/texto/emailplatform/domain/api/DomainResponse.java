@@ -8,6 +8,10 @@ public record DomainResponse(
         String domain,
         String status,
         String verificationStatus,
+        String ownershipStatus,
+        String spfStatus,
+        String dkimStatus,
+        String dmarcStatus,
         Instant createdAt,
         Instant updatedAt
 ) {
