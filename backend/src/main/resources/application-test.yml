@@ -1,0 +1,49 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+  task:
+    scheduling:
+      enabled: false
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
+email-platform:
+  security:
+    api-docs-public: false
+  cors:
+    allowed-origins: http://localhost:3000
+  domains:
+    allow-platform-test-senders: true
+  email:
+    max-recipients: 50
+    max-attempts: 5
+    outbox-poll-ms: 500
+    rate-limit-per-minute: 120
+  webhooks:
+    allow-http: true
+    max-attempts: 5
+    connect-timeout-ms: 2000
+    read-timeout-ms: 5000
+  billing:
+    provider: noop
+    grace-period-days: 3
+
+logging:
+  structured:
+    format:
+      console: ecs
+    ecs:
+      service:
+        environment: test

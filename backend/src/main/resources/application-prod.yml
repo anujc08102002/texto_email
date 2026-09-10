@@ -1,0 +1,37 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+management:
+  endpoint:
+    health:
+      show-details: never
+      show-components: when-authorized
+
+email-platform:
+  security:
+    api-docs-public: false
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  mailpit:
+    host: ${MAILPIT_HOST}
+    smtp-port: ${MAILPIT_SMTP_PORT}
+
+logging:
+  structured:
+    format:
+      console: ecs
+    ecs:
+      service:
+        environment: prod

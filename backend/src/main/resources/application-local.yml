@@ -1,0 +1,31 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
+email-platform:
+  security:
+    api-docs-public: true
+  billing:
+    provider: noop
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+logging:
+  structured:
+    format:
+      console: ecs
+    ecs:
+      service:
+        environment: local
