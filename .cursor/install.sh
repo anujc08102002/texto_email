@@ -12,6 +12,16 @@ cd "$REPO_ROOT"
 
 log() { printf '\n=== %s ===\n' "$1"; }
 
+# Non-interactive apt: DEBIAN_FRONTEND alone does not suppress dpkg conffile
+# prompts (e.g. /etc/fuse.conf), which abort the build. Force keeping the
+# existing config so installs never block on stdin.
+apt_install() {
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    -o Dpkg::Options::=--force-confdef \
+    -o Dpkg::Options::=--force-confold \
+    "$@"
+}
+
 # ---------------------------------------------------------------------------
 # 1. Docker Engine + Compose (needed for Postgres, RabbitMQ, Redis, Mailpit).
 #    Installed here so it is baked into the environment build snapshot.
@@ -19,10 +29,10 @@ log() { printf '\n=== %s ===\n' "$1"; }
 if ! command -v docker >/dev/null 2>&1; then
   log "Installing Docker Engine"
   sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    ca-certificates curl gnupg fuse-overlayfs uidmap
-  # A pending interactive fuse3 conffile prompt can wedge dpkg; resolve it.
-  sudo DEBIAN_FRONTEND=noninteractive dpkg --configure -a --force-confold || true
+  apt_install ca-certificates curl gnupg fuse-overlayfs uidmap
+  # Resolve any half-configured packages from a prior interrupted run.
+  sudo DEBIAN_FRONTEND=noninteractive dpkg --configure -a \
+    --force-confdef --force-confold || true
 
   sudo install -m 0755 -d /etc/apt/keyrings
   if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
@@ -34,8 +44,7 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
     | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
   sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  apt_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 else
   log "Docker already installed ($(docker --version))"
 fi
