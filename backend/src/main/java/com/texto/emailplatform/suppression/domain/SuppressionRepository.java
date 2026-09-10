@@ -15,11 +15,16 @@ public interface SuppressionRepository extends JpaRepository<SuppressionEntity, 
 
     List<SuppressionEntity> findByTenantIdOrderByCreatedAtDesc(UUID tenantId);
 
+    List<SuppressionEntity> findByTenantIdAndTypeOrderByCreatedAtDesc(UUID tenantId, String type);
+
+    // Only invoked with a non-null search term. Binding a null into CONCAT/LIKE makes
+    // PostgreSQL type the parameter as bytea ("operator does not exist: varchar ~~ bytea"),
+    // so the null-search cases use the derived finders above instead.
     @Query("""
             SELECT s FROM SuppressionEntity s
             WHERE s.tenantId = :tenantId
               AND (:type IS NULL OR s.type = :type)
-              AND (:search IS NULL OR s.normalizedEmail LIKE CONCAT('%', :search, '%'))
+              AND s.normalizedEmail LIKE CONCAT('%', :search, '%')
             ORDER BY s.createdAt DESC
             """)
     List<SuppressionEntity> search(

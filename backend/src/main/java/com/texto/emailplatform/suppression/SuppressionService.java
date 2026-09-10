@@ -58,7 +58,15 @@ public class SuppressionService {
         UUID tenantId = requireTenantId();
         String normalizedSearch = search == null || search.isBlank() ? null : EmailNormalizer.normalize(search);
         String normalizedType = type == null || type.isBlank() ? null : type.trim().toUpperCase(Locale.ROOT);
-        return suppressionRepository.search(tenantId, normalizedType, normalizedSearch).stream()
+        List<SuppressionEntity> rows;
+        if (normalizedSearch == null) {
+            rows = normalizedType == null
+                    ? suppressionRepository.findByTenantIdOrderByCreatedAtDesc(tenantId)
+                    : suppressionRepository.findByTenantIdAndTypeOrderByCreatedAtDesc(tenantId, normalizedType);
+        } else {
+            rows = suppressionRepository.search(tenantId, normalizedType, normalizedSearch);
+        }
+        return rows.stream()
                 .map(SuppressionService::toResponse)
                 .toList();
     }
