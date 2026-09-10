@@ -8,6 +8,7 @@ import com.texto.emailplatform.domain.domain.DomainRepository;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -59,9 +60,31 @@ public class DkimKeyService {
                         "No active DKIM signing key is provisioned for this domain"
                 ));
 
+        return toSigningKey(domain.getId(), key);
+    }
+
+    /**
+     * Resolves the active DKIM signing key for a tenant's <b>verified</b> sending domain, if one is
+     * configured. Returns empty (rather than throwing) when the domain is not a verified custom
+     * domain of the tenant or has no active key — e.g. platform test senders ({@code *.texto.test}),
+     * which are simply sent unsigned. Never returns a key for another tenant's domain.
+     */
+    @Transactional(readOnly = true)
+    public Optional<DkimSigningKey> findActiveSigningKey(UUID tenantId, String senderDomain) {
+        if (tenantId == null || senderDomain == null || senderDomain.isBlank()) {
+            return Optional.empty();
+        }
+        return domainRepository.findByTenantIdAndDomain(tenantId, senderDomain)
+                .filter(domain -> DomainEntity.STATUS_VERIFIED.equals(domain.getStatus()))
+                .flatMap(domain -> dkimKeyRepository
+                        .findFirstByDomainIdAndStatusOrderByCreatedAtDesc(domain.getId(), DkimKeyEntity.STATUS_ACTIVE)
+                        .map(key -> toSigningKey(domain.getId(), key)));
+    }
+
+    private DkimSigningKey toSigningKey(UUID domainId, DkimKeyEntity key) {
         byte[] pkcs8 = dkimKeyProtector.decryptPrivateKey(key.getEncryptedPrivateKey());
         PrivateKey privateKey = reconstructPrivateKey(key.getAlgorithm(), pkcs8);
-        return new DkimSigningKey(domain.getId(), key.getSelector(), key.getAlgorithm(), privateKey);
+        return new DkimSigningKey(domainId, key.getSelector(), key.getAlgorithm(), privateKey);
     }
 
     private static PrivateKey reconstructPrivateKey(String algorithm, byte[] pkcs8) {

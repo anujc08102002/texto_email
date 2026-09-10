@@ -221,3 +221,19 @@ To enable local TEST checkout:
 3. Set `BILLING_PROVIDER=razorpay` and the three Razorpay env vars.
 4. Point the Razorpay webhook to your backend `/api/v1/billing/webhooks/razorpay`.
 5. Upgrade from **Billing** or **Plans** in the dashboard.
+
+## Phase 8A — DKIM signing (local)
+
+Outbound mail from a tenant's **verified custom domain** is DKIM-signed (RFC 6376) before it leaves the delivery engine. Mailpit remains the destination — production SMTP is not implemented.
+
+- **Where signing happens:** `delivery/MailpitDeliveryEngine` finalizes the message headers + body (including `Date` and `Message-ID`, added pre-signing), then signs, then transmits. No signed content is mutated after signing.
+- **Component that owns signing:** `domain/dkim/DkimSigner` — a pure cryptographic component (no DB, tenants, HTTP, or transport). It receives the finalized message, private key, signing domain, and selector.
+- **Algorithm / canonicalization:** `a=rsa-sha256`, `c=relaxed/relaxed`. Relaxed tolerates benign whitespace/folding changes common in transit.
+- **Signed headers (`h=`):** `From` (required), `To`, `Cc`, `Subject`, `Date`, `Message-ID`, `MIME-Version`, `Content-Type`, `Reply-To` — each only when present. `DKIM-Signature` is never signed.
+- **`bh=`:** Base64 SHA-256 of the relaxed-canonicalized body (computed over the exact transmitted body).
+- **`b=`:** Base64 RSA-SHA256 signature over the canonicalized signed headers plus the `DKIM-Signature` header with an empty `b=`.
+- **Key retrieval:** `domain/dkim/DkimKeyService.findActiveSigningKey(tenantId, senderDomain)` resolves the tenant's verified domain, loads the active `dkim_keys` row, and decrypts the private key via `DkimKeyProtector` (Phase 8A Step 1). The signer never touches the repository or ciphertext.
+- **Signing domain / selector:** `d=` is the verified sender domain (same enforcement as `EmailService.requireVerifiedSender`); `s=` is the persisted active selector. Neither is taken from client input.
+- **Tenant isolation:** keys are resolved strictly by `(tenantId, domain)`, so one tenant can never sign with another tenant's key. Platform test senders (`*.texto.test`) and unverified domains have no key and are sent **unsigned**; a signing failure for a configured domain is a **delivery failure** (not a silent unsigned send).
+- **Testing:** `DkimSignerTest` verifies signatures with an independent in-test verifier and a full tamper matrix (body/From/Subject/header/signature changes fail). `DkimDeliveryIT` runs the real engine against a Mailpit container and cryptographically verifies the delivered message. Cross-implementation validation uses Python `dkimpy`.
+- **Manual Mailpit verification:** create a domain, mark it `VERIFIED` (locally), send from `noreply@<domain>`, then fetch the raw message at `http://localhost:8025/api/v1/message/{id}/raw` and confirm a `DKIM-Signature` with `d=<domain>` / `s=texto`. Verify independently with `dkimpy` by supplying the domain's public key.

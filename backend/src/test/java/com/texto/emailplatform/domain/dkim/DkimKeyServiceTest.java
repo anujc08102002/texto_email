@@ -114,4 +114,43 @@ class DkimKeyServiceTest {
                 .extracting(ex -> ((ApiException) ex).getCode())
                 .isEqualTo("DKIM_KEY_NOT_FOUND");
     }
+
+    @Test
+    void findActiveSigningKeyReturnsKeyForVerifiedDomain() {
+        domain.setStatus("VERIFIED");
+        when(domainRepository.findByTenantIdAndDomain(tenantA, "mail.example.test")).thenReturn(Optional.of(domain));
+        when(dkimKeyRepository.findFirstByDomainIdAndStatusOrderByCreatedAtDesc(domain.getId(), "ACTIVE"))
+                .thenReturn(Optional.of(storedKey()));
+
+        Optional<DkimSigningKey> key = service.findActiveSigningKey(tenantA, "mail.example.test");
+
+        assertThat(key).isPresent();
+        assertThat(key.get().selector()).isEqualTo("texto");
+    }
+
+    @Test
+    void findActiveSigningKeyEmptyForUnverifiedDomain() {
+        // domain is PENDING (default) -> not eligible for signing
+        when(domainRepository.findByTenantIdAndDomain(tenantA, "mail.example.test")).thenReturn(Optional.of(domain));
+
+        assertThat(service.findActiveSigningKey(tenantA, "mail.example.test")).isEmpty();
+    }
+
+    @Test
+    void findActiveSigningKeyEmptyForOtherTenant() {
+        // Tenant B has no such domain -> empty (cannot sign with A's key).
+        when(domainRepository.findByTenantIdAndDomain(tenantB, "mail.example.test")).thenReturn(Optional.empty());
+
+        assertThat(service.findActiveSigningKey(tenantB, "mail.example.test")).isEmpty();
+    }
+
+    @Test
+    void findActiveSigningKeyEmptyWhenNoActiveKey() {
+        domain.setStatus("VERIFIED");
+        when(domainRepository.findByTenantIdAndDomain(tenantA, "mail.example.test")).thenReturn(Optional.of(domain));
+        when(dkimKeyRepository.findFirstByDomainIdAndStatusOrderByCreatedAtDesc(domain.getId(), "ACTIVE"))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.findActiveSigningKey(tenantA, "mail.example.test")).isEmpty();
+    }
 }

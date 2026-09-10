@@ -1,6 +1,7 @@
 package com.texto.emailplatform.delivery;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Abstraction over outbound email providers. Mailpit for local; Postfix later.
@@ -10,6 +11,7 @@ public interface DeliveryEngine {
     DeliveryResult deliver(DeliveryRequest request);
 
     record DeliveryRequest(
+            UUID tenantId,
             String from,
             List<String> to,
             List<String> cc,
