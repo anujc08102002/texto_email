@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AnalyticsChart } from "@/components/analytics/analytics-chart";
+import { PageHeader } from "@/components/layout/page-header";
 import { MetricDisplay } from "@/components/ops/metric-display";
 import { SectionPanel } from "@/components/ops/section-panel";
 import { DeliveryHealth } from "@/components/ops/delivery-health";
@@ -20,52 +21,57 @@ export default function AnalyticsPage() {
   const series = range === "7d" ? WEEKLY_SERIES : ANALYTICS_SERIES;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-5">
-        <div>
-          <p className="tech-label text-primary">Analytics</p>
-          <h1 className="text-page-heading mt-1">Analytics</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Professional delivery telemetry. Series are preview until GET /api/v1/analytics.
-          </p>
-        </div>
-        <div className="flex rounded-lg border border-border/70 bg-card p-0.5">
-          {RANGES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setRange(item.id)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                range === item.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="flex min-h-full flex-col gap-4">
+      <PageHeader
+        eyebrow="Analytics"
+        title="Delivery telemetry"
+        description="Professional volume and mix. Series are preview until GET /api/v1/analytics."
+        actions={
+          <div className="flex w-full flex-wrap rounded-full border border-border/70 bg-card p-0.5 sm:w-auto">
+            {RANGES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setRange(item.id)}
+                className={cn(
+                  "flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:flex-none",
+                  range === item.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       <p className="text-[11px] text-muted-foreground">{PRESENTATION_NOTICE}</p>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <SectionPanel>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <SectionPanel className="p-4 sm:p-5">
           <MetricDisplay label="Sent" value="40,750" change="↑ 8.2%" trend="up" size="md" />
         </SectionPanel>
-        <SectionPanel>
+        <SectionPanel className="p-4 sm:p-5">
           <MetricDisplay label="Delivered" value="39,911" change="↑ 8.4%" trend="up" size="md" />
         </SectionPanel>
-        <SectionPanel>
+        <SectionPanel className="p-4 sm:p-5">
           <MetricDisplay label="Open rate" value="—" comparison="Requires engagement API" size="md" />
         </SectionPanel>
-        <SectionPanel>
+        <SectionPanel className="p-4 sm:p-5">
           <MetricDisplay label="Click rate" value="—" comparison="Requires engagement API" size="md" />
         </SectionPanel>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
-        <AnalyticsChart title="Volume" description="Sent · delivered · bounced · failed" data={series} preview />
-        <SectionPanel title="Delivery mix">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
+        <AnalyticsChart
+          title="Volume"
+          description="Sent · delivered · bounced · failed"
+          data={series}
+          preview
+          fill
+          className="min-h-[280px] xl:min-h-0"
+        />
+        <SectionPanel title="Delivery mix" className="h-fit">
           <DeliveryHealth breakdown={DELIVERY_BREAKDOWN} />
         </SectionPanel>
       </div>

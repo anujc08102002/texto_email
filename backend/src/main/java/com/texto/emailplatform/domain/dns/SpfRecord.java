@@ -22,12 +22,26 @@ public final class SpfRecord {
     }
 
     public static String generate(String includeDomain, String allQualifier) {
-        String include = includeDomain == null ? "" : includeDomain.trim().toLowerCase(Locale.ROOT);
+        return generate(includeDomain, allQualifier, null);
+    }
+
+    public static String generate(String includeDomain, String allQualifier, String ip4) {
         String qualifier = normalizeQualifier(allQualifier);
-        return VERSION + " include:" + include + " " + qualifier + "all";
+        StringBuilder record = new StringBuilder(VERSION);
+        if (ip4 != null && !ip4.isBlank()) {
+            record.append(" ip4:").append(ip4.trim());
+        } else {
+            String include = includeDomain == null ? "" : includeDomain.trim().toLowerCase(Locale.ROOT);
+            record.append(" include:").append(include);
+        }
+        return record.append(' ').append(qualifier).append("all").toString();
     }
 
     public static MatchResult match(List<String> txtRecords, String expectedInclude, String allQualifier) {
+        return match(txtRecords, expectedInclude, allQualifier, null);
+    }
+
+    public static MatchResult match(List<String> txtRecords, String expectedInclude, String allQualifier, String ip4) {
         List<String> spfRecords = new ArrayList<>();
         if (txtRecords != null) {
             for (String raw : txtRecords) {
@@ -48,7 +62,7 @@ public final class SpfRecord {
         if (parsed == null) {
             return MatchResult.malformed();
         }
-        String expected = generate(expectedInclude, allQualifier);
+        String expected = generate(expectedInclude, allQualifier, ip4);
         Parsed want = parse(expected);
         if (want == null || !parsed.equals(want)) {
             return MatchResult.mismatch();
@@ -89,6 +103,9 @@ public final class SpfRecord {
         String lower = term.toLowerCase(Locale.ROOT);
         if (lower.startsWith("include:")) {
             return "include:" + lower.substring("include:".length());
+        }
+        if (lower.startsWith("ip4:")) {
+            return "ip4:" + lower.substring("ip4:".length());
         }
         return lower;
     }

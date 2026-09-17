@@ -27,6 +27,12 @@ class MessageStateMachineTest {
     }
 
     @Test
+    void allowsDeliveredAndDeferredToBouncedForPostMtaDsn() {
+        MessageStateMachine.assertTransition(MessageStateMachine.DELIVERED, MessageStateMachine.BOUNCED);
+        MessageStateMachine.assertTransition(MessageStateMachine.DEFERRED, MessageStateMachine.BOUNCED);
+    }
+
+    @Test
     void rejectsIllegalTransitions() {
         assertThatThrownBy(() -> MessageStateMachine.assertTransition(
                 MessageStateMachine.DELIVERED,

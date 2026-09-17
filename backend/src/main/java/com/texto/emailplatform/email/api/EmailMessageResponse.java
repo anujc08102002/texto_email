@@ -17,6 +17,8 @@ public record EmailMessageResponse(
         List<String> recipientsCc,
         List<String> recipientsBcc,
         List<String> suppressedRecipients,
+        List<String> bouncedRecipients,
+        List<String> softBouncedRecipients,
         Map<String, Object> metadata,
         String providerMessageId,
         Integer attemptCount,

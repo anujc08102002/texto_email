@@ -70,7 +70,7 @@ export function WebhooksList() {
   }, []);
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/60 pb-5">
         <div>
           <p className="tech-label text-primary">Developer</p>

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { RecipientChips } from "@/components/emails/recipient-chips";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionPanel } from "@/components/ops/section-panel";
+import { HtmlPreview } from "@/components/templates/html-preview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,16 +22,19 @@ import { listDomains } from "@/services/domains";
 import { getUsage } from "@/services/platform";
 import { sendEmail } from "@/services/emails";
 
-function platformFrom(slug?: string | null) {
-  if (!slug) return "";
-  return `noreply@${slug}.texto.test`;
-}
-
 function newIdempotencyKey() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
   return `idem_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
@@ -59,29 +63,45 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchCurrentUser().catch(() => user), listDomains().catch(() => [])])
-      .then(([profile, domains]) => {
+
+    listDomains()
+      .catch(() => [])
+      .then((domains) => {
         if (cancelled) return;
+
         const identities: string[] = [];
-        const slug = profile?.tenantSlug;
-        const platform = platformFrom(slug);
-        if (platform) identities.push(platform);
+
         for (const domain of domains) {
           if (domain.status === "VERIFIED" || domain.verificationStatus === "VERIFIED") {
             const address = `noreply@${domain.domain}`;
-            if (!identities.includes(address)) identities.push(address);
+
+            if (!identities.includes(address)) {
+              identities.push(address);
+            }
           }
         }
+
         setFromOptions(identities);
-        setFrom((current) => (current.trim() ? current : identities[0] ?? platformFrom(user?.tenantSlug)));
+
+        setFrom((current) => {
+          if (current.trim()) {
+            return current;
+          }
+
+          return identities[0] ?? "";
+        });
       })
       .catch(() => {
-        /* optional UX */
+        if (!cancelled) {
+          setFromOptions([]);
+          setFrom("");
+        }
       });
+
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     getUsage()
@@ -130,12 +150,17 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
     }
   }
 
+  const previewHtml =
+    mode === "html"
+      ? body || "<p style='color:#888'>HTML preview appears here.</p>"
+      : `<pre style="font:14px/1.6 ui-sans-serif,system-ui;white-space:pre-wrap;padding:16px;margin:0">${escapeHtml(body) || "Plain-text preview appears here."}</pre>`;
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="flex min-h-full flex-col gap-4 pb-28 lg:pb-6">
       <PageHeader
         eyebrow="Workspace"
         title="Compose"
-        description="Messages are accepted as QUEUED, then delivered asynchronously via RabbitMQ → Mailpit."
+        description="Messages are accepted as QUEUED, then delivered asynchronously through the configured email delivery provider."
       />
 
       {quotaLabel ? (
@@ -147,113 +172,115 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <SectionPanel title="Message header" className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="from">From</Label>
-            <Input
-              id="from"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              list="from-identities"
-              placeholder="noreply@your-domain.com"
-              className="font-mono text-sm"
-              required
-            />
-            {fromOptions.length > 0 ? (
-              <datalist id="from-identities">
-                {fromOptions.map((address) => (
-                  <option key={address} value={address} />
-                ))}
-              </datalist>
-            ) : null}
-            <p className="text-[11px] text-muted-foreground">
-              Local sends use <span className="font-mono">noreply@{"{slug}"}.texto.test</span>, which is auto-verified
-              with SPF, DKIM, and DMARC.
-            </p>
-          </div>
-          <RecipientChips id="to" label="To" values={to} onChange={setTo} required />
+      <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,320px)]">
+        <SectionPanel className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="from">From</Label>
+              <Input
+                id="from"
+                value={from}
+                onChange={(event) => setFrom(event.target.value)}
+                list="from-identities"
+                placeholder="noreply@your-domain.com"
+                className="font-mono text-sm"
+                required
+              />
+              {fromOptions.length > 0 ? (
+                <datalist id="from-identities">
+                  {fromOptions.map((address) => (
+                    <option key={address} value={address} />
+                  ))}
+                </datalist>
+              ) : null}
+            </div>
+            <div className="sm:col-span-2">
+              <RecipientChips id="to" label="To" values={to} onChange={setTo} required />
+            </div>
             <RecipientChips id="cc" label="Cc" values={cc} onChange={setCc} />
             <RecipientChips id="bcc" label="Bcc" values={bcc} onChange={setBcc} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="replyTo">Reply-To</Label>
-            <Input
-              id="replyTo"
-              value={replyTo}
-              onChange={(event) => setReplyTo(event.target.value)}
-              className="font-mono text-sm"
-              placeholder="support@example.com"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="subject">Subject</Label>
-              <span className="font-mono text-[11px] text-muted-foreground">{subject.length}/255</span>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="replyTo">Reply-To</Label>
+              <Input
+                id="replyTo"
+                value={replyTo}
+                onChange={(event) => setReplyTo(event.target.value)}
+                className="font-mono text-sm"
+                placeholder="support@example.com"
+              />
             </div>
-            <Input
-              id="subject"
-              value={subject}
-              maxLength={255}
-              onChange={(event) => setSubject(event.target.value)}
-              required
-            />
+            <div className="space-y-1.5 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="subject">Subject</Label>
+                <span className="font-mono text-[11px] text-muted-foreground">{subject.length}/255</span>
+              </div>
+              <Input
+                id="subject"
+                value={subject}
+                maxLength={255}
+                onChange={(event) => setSubject(event.target.value)}
+                className="h-11 text-base"
+                required
+              />
+            </div>
           </div>
-        </SectionPanel>
 
-        <SectionPanel title="Send summary">
-          <dl className="space-y-3 text-sm">
-            <div>
-              <dt className="tech-label">Recipients</dt>
-              <dd className="mt-1 font-mono text-xs">{to.length + cc.length + bcc.length} units</dd>
-            </div>
-            <div>
-              <dt className="tech-label">Quota model</dt>
-              <dd className="mt-1 text-xs text-muted-foreground">1 recipient = 1 monthly email</dd>
-            </div>
-            <div>
-              <dt className="tech-label">Delivery</dt>
-              <dd className="mt-1 text-xs text-muted-foreground">Async · Mailpit local sink</dd>
-            </div>
-          </dl>
-        </SectionPanel>
-      </div>
-
-      <SectionPanel
-        title="Body"
-        action={
           <Tabs value={mode} onValueChange={setMode}>
-            <TabsList>
-              <TabsTrigger value="text">Text</TabsTrigger>
-              <TabsTrigger value="html">HTML</TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Body</p>
+              <TabsList>
+                <TabsTrigger value="text">Text</TabsTrigger>
+                <TabsTrigger value="html">HTML</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="text">
+              <Textarea
+                value={body}
+                maxLength={20000}
+                rows={16}
+                onChange={(event) => setBody(event.target.value)}
+                className="min-h-80 rounded-2xl"
+                placeholder="Write the message…"
+              />
+            </TabsContent>
+            <TabsContent value="html">
+              <Textarea
+                value={body}
+                maxLength={20000}
+                rows={16}
+                onChange={(event) => setBody(event.target.value)}
+                className="min-h-80 rounded-2xl font-mono text-[13px]"
+                placeholder="<html>…</html>"
+              />
+            </TabsContent>
           </Tabs>
-        }
-      >
-        <Tabs value={mode} onValueChange={setMode}>
-          <TabsContent value="text">
-            <Textarea
-              value={body}
-              maxLength={20000}
-              rows={16}
-              onChange={(event) => setBody(event.target.value)}
-              className="min-h-80"
-              placeholder="Write the message…"
-            />
-          </TabsContent>
-          <TabsContent value="html">
-            <Textarea
-              value={body}
-              maxLength={20000}
-              rows={16}
-              onChange={(event) => setBody(event.target.value)}
-              className="min-h-80 font-mono text-[13px]"
-              placeholder="<html>…</html>"
-            />
-          </TabsContent>
-        </Tabs>
-      </SectionPanel>
+        </SectionPanel>
+
+        <div className="space-y-4">
+          <SectionPanel title="Preview" elevated>
+            <p className="mb-3 truncate text-sm font-medium">{subject || "Untitled message"}</p>
+            <HtmlPreview html={previewHtml} title="Message preview" className="h-56 w-full rounded-xl border border-border/70 bg-white sm:h-72" />
+          </SectionPanel>
+          <SectionPanel title="Send summary">
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="tech-label">Recipients</dt>
+                <dd className="mt-1 text-sm">{to.length + cc.length + bcc.length} units</dd>
+              </div>
+              <div>
+                <dt className="tech-label">Quota</dt>
+                <dd className="mt-1 font-mono text-xs">{quotaLabel ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="tech-label">Delivery</dt>
+                <dd className="mt-1 text-xs text-muted-foreground">
+                  Async · Configured delivery provider
+                </dd>
+              </div>
+            </dl>
+          </SectionPanel>
+        </div>
+      </div>
 
       {error ? (
         <Alert variant="error">
@@ -261,7 +288,7 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
         </Alert>
       ) : null}
 
-      <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-border/80 bg-card/90 p-3 shadow-sm backdrop-blur-xl">
+      <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-border/80 bg-card/95 p-3 shadow-md backdrop-blur-xl sm:gap-3 [padding-bottom:max(0.75rem,env(safe-area-inset-bottom))]">
         <Button type="button" variant="secondary" asChild>
           <Link href="/emails">Cancel</Link>
         </Button>

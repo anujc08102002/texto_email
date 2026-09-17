@@ -152,8 +152,8 @@ class PlatformFoundationIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"to":"%s","subject":"Hello","body":"Test body"}
-                                """.formatted(email)))
+                                {"from":"noreply@get-set-go-world.texto.test","to":"%s","subject":"Hello","body":"Test body"}
+                                        """.formatted(email)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("QUEUED"))
                 .andExpect(jsonPath("$.data.recipient").value(email));

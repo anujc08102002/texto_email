@@ -51,11 +51,11 @@ function AdminNavLink({
         "group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-all duration-150",
         active
           ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/75 hover:bg-muted/70 hover:text-foreground",
+          : "text-sidebar-foreground/72 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
       )}
     >
-      {active ? <span className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-primary" aria-hidden /> : null}
-      <Icon className={cn("size-4 shrink-0", active ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+      {active ? <span className="absolute inset-y-1.5 left-0 w-[2.5px] rounded-full bg-sidebar-primary" aria-hidden /> : null}
+      <Icon className={cn("size-4 shrink-0", active ? "text-sidebar-primary" : "text-sidebar-muted group-hover:text-sidebar-foreground")} />
       <span className="truncate">{label}</span>
     </Link>
   );
@@ -63,10 +63,10 @@ function AdminNavLink({
 
 function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-14 items-center justify-between gap-2 border-b border-sidebar-border/80 px-3">
-        <Brand href="/admin" />
-        <span className="shrink-0 rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-primary uppercase">
+    <div className="flex h-full flex-col text-sidebar-foreground">
+      <div className="flex h-[3.75rem] items-center justify-between gap-2 border-b border-sidebar-border px-3">
+        <Brand href="/admin" inverted />
+        <span className="shrink-0 rounded-md border border-white/10 bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-sidebar-primary uppercase">
           Admin
         </span>
       </div>
@@ -74,7 +74,7 @@ function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
         <nav className="space-y-5 px-2 py-4">
           {ADMIN_NAV_SECTIONS.map((section) => (
             <div key={section.id}>
-              <p className="mb-1.5 px-2.5 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground/75 uppercase">
+              <p className="mb-1.5 px-2.5 text-[10px] font-semibold tracking-[0.16em] text-sidebar-muted uppercase">
                 {section.label}
               </p>
               <div className="space-y-0.5">
@@ -109,7 +109,7 @@ function AdminHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/70 bg-[var(--header)] px-4 backdrop-blur-xl sm:px-6 xl:px-8">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-[var(--header)] px-3 backdrop-blur-2xl sm:h-[3.75rem] sm:gap-3 sm:px-5 lg:px-8 [padding-left:max(0.75rem,env(safe-area-inset-left))] [padding-right:max(0.75rem,env(safe-area-inset-right))]">
       <IconButton className="lg:hidden" aria-label="Open navigation" onClick={() => setMobileOpen(true)}>
         <Menu />
       </IconButton>
@@ -120,7 +120,7 @@ function AdminHeader() {
       <Button
         type="button"
         variant="secondary"
-        className="hidden h-9 min-w-44 justify-between rounded-lg bg-muted/60 text-muted-foreground shadow-none md:inline-flex"
+        className="hidden h-9 min-w-0 flex-1 max-w-xl justify-between rounded-full bg-card/70 text-muted-foreground shadow-none md:inline-flex"
         onClick={() => setCommandOpen(true)}
       >
         <span className="flex items-center gap-2">
@@ -129,12 +129,15 @@ function AdminHeader() {
         </span>
         <kbd className="rounded border border-border/80 bg-card px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
       </Button>
-      <span className="hidden items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold tracking-[0.12em] text-primary uppercase sm:inline-flex">
+      <IconButton className="md:hidden" aria-label="Open command menu" onClick={() => setCommandOpen(true)}>
+        <Search />
+      </IconButton>
+      <span className="hidden items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold tracking-[0.12em] text-primary uppercase lg:inline-flex">
         <Shield className="size-3" />
         Platform
       </span>
       <ThemeToggle />
-      <div className="hidden text-right text-xs sm:block">
+      <div className="hidden min-w-0 text-right text-xs lg:block">
         <p className="font-medium">{admin?.name ?? "Admin"}</p>
         <p className="font-mono text-[10px] text-muted-foreground">{admin?.email}</p>
       </div>
@@ -194,36 +197,34 @@ function AdminFrame({ children }: { children: React.ReactNode }) {
   }, [pathname, setMobileOpen]);
 
   if (!isClient || !admin) {
-    return <div className="min-h-screen bg-app" />;
+    return <div className="min-h-dvh bg-app" />;
   }
 
   return (
-    <div className="min-h-screen bg-app">
-      <div className="flex min-h-screen">
-        <aside className="sticky top-0 z-20 hidden h-screen w-[260px] shrink-0 border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl lg:block">
-          <AdminSidebar />
-        </aside>
-        <Drawer open={mobileOpen} onOpenChange={setMobileOpen} direction="left">
-          <DrawerContent>
-            <DrawerTitle className="sr-only">Admin navigation</DrawerTitle>
-            <DrawerDescription className="sr-only">Platform administration</DrawerDescription>
-            <AdminSidebar onNavigate={() => setMobileOpen(false)} />
-          </DrawerContent>
-        </Drawer>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <AdminHeader />
-          <main className="relative flex-1 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
-            <motion.div
-              key={pathname}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: duration.base, ease: easeOut }}
-              className="relative w-full"
-            >
-              {children}
-            </motion.div>
-          </main>
-        </div>
+    <div className="flex h-dvh overflow-hidden bg-app">
+      <aside className="bg-rail z-20 hidden h-dvh w-[272px] shrink-0 border-r border-sidebar-border lg:block">
+        <AdminSidebar />
+      </aside>
+      <Drawer open={mobileOpen} onOpenChange={setMobileOpen} direction="left">
+        <DrawerContent className="bg-rail h-dvh border-sidebar-border text-sidebar-foreground data-[vaul-drawer-direction=left]:w-[min(18rem,92vw)]">
+          <DrawerTitle className="sr-only">Admin navigation</DrawerTitle>
+          <DrawerDescription className="sr-only">Platform administration</DrawerDescription>
+          <AdminSidebar onNavigate={() => setMobileOpen(false)} />
+        </DrawerContent>
+      </Drawer>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <AdminHeader />
+        <main className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+          <motion.div
+            key={pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: duration.base, ease: easeOut }}
+            className="relative flex min-h-full min-w-0 w-full flex-col"
+          >
+            {children}
+          </motion.div>
+        </main>
       </div>
       <AdminCommandMenu />
     </div>

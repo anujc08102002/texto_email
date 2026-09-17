@@ -12,7 +12,7 @@ import { formatDateTime } from "@/lib/format";
 
 export function AdminComplianceScreen() {
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Platform admin"
         title="Compliance"

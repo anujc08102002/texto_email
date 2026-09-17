@@ -19,7 +19,7 @@ export function DeliveryHealth({ breakdown }: { breakdown: PresentationDeliveryB
       {ROWS.map((row) => {
         const value = breakdown[row.key];
         return (
-          <div key={row.key} className="grid grid-cols-[88px_1fr_56px] items-center gap-3">
+          <div key={row.key} className="grid grid-cols-[4.5rem_1fr_3.25rem] items-center gap-2 sm:grid-cols-[88px_1fr_56px] sm:gap-3">
             <p className="text-xs text-muted-foreground">{row.label}</p>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <motion.div

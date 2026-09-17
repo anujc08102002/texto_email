@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export default function NewWebhookPage() {
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Webhooks"
         title="Add endpoint"

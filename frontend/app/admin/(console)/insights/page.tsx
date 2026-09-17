@@ -17,7 +17,7 @@ export default function AdminInsightsPage() {
   const frozen = ADMIN_TENANTS.filter((t) => t.sendingFrozen || t.status === "sending_frozen").length;
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Platform admin"
         title="Platform insights"
@@ -25,7 +25,7 @@ export default function AdminInsightsPage() {
       />
       <AdminPreviewBanner />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <SectionPanel>
           <MetricDisplay
             label="Active tenants"
@@ -55,7 +55,7 @@ export default function AdminInsightsPage() {
         </SectionPanel>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(240px,20rem)]">
         <TrafficChart />
         <SectionPanel title="Fleet delivery mix">
           <DeliveryHealth breakdown={DELIVERY_BREAKDOWN} />

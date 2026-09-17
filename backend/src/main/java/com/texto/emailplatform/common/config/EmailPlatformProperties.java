@@ -11,9 +11,12 @@ public class EmailPlatformProperties {
     private final Security security = new Security();
     private final Mailpit mailpit = new Mailpit();
     private final Mta mta = new Mta();
+    private final Ses ses = new Ses();
     private final Domains domains = new Domains();
     private final Webhooks webhooks = new Webhooks();
     private final Email email = new Email();
+    private final Bounce bounce = new Bounce();
+    private final Complaint complaint = new Complaint();
     private final Billing billing = new Billing();
 
     public Cors getCors() {
@@ -32,6 +35,10 @@ public class EmailPlatformProperties {
         return mta;
     }
 
+    public Ses getSes() {
+        return ses;
+    }
+
     public Domains getDomains() {
         return domains;
     }
@@ -42,6 +49,14 @@ public class EmailPlatformProperties {
 
     public Email getEmail() {
         return email;
+    }
+
+    public Bounce getBounce() {
+        return bounce;
+    }
+
+    public Complaint getComplaint() {
+        return complaint;
     }
 
     public Billing getBilling() {
@@ -104,8 +119,22 @@ public class EmailPlatformProperties {
         private String spfInclude = "_spf.texto.email";
         /** RFC 7208 qualifier for {@code all}: {@code +}, {@code -}, {@code ?}, or {@code ~}. */
         private String spfAllQualifier = "~";
+        /**
+         * When true, customer SPF TXT includes {@code ip4:<MTA_OUTBOUND_IP>} and omits the unprovisioned include.
+         */
+        private boolean spfAuthorizeOutboundIp = false;
+        /**
+         * When true, {@code SPF_INCLUDE} is an actually published DNS include. Default false:
+         * {@code _spf.texto.email} is not provisioned yet.
+         */
+        private boolean spfIncludeProvisioned = false;
         /** Selector used for newly generated DKIM keys. Existing records keep their stored selector. */
         private String dkimSelector = "texto";
+        /**
+         * Base64-encoded 32-byte AES-256 key for DKIM private-key custody.
+         * Required in production ({@code DKIM_KEY_ENCRYPTION_KEY}).
+         */
+        private String dkimKeyEncryptionKey;
         private String dmarcPolicy = "none";
         private String dmarcSubdomainPolicy;
         private String dmarcRua;
@@ -140,12 +169,36 @@ public class EmailPlatformProperties {
             this.spfAllQualifier = spfAllQualifier;
         }
 
+        public boolean isSpfAuthorizeOutboundIp() {
+            return spfAuthorizeOutboundIp;
+        }
+
+        public void setSpfAuthorizeOutboundIp(boolean spfAuthorizeOutboundIp) {
+            this.spfAuthorizeOutboundIp = spfAuthorizeOutboundIp;
+        }
+
+        public boolean isSpfIncludeProvisioned() {
+            return spfIncludeProvisioned;
+        }
+
+        public void setSpfIncludeProvisioned(boolean spfIncludeProvisioned) {
+            this.spfIncludeProvisioned = spfIncludeProvisioned;
+        }
+
         public String getDkimSelector() {
             return dkimSelector;
         }
 
         public void setDkimSelector(String dkimSelector) {
             this.dkimSelector = dkimSelector;
+        }
+
+        public String getDkimKeyEncryptionKey() {
+            return dkimKeyEncryptionKey;
+        }
+
+        public void setDkimKeyEncryptionKey(String dkimKeyEncryptionKey) {
+            this.dkimKeyEncryptionKey = dkimKeyEncryptionKey;
         }
 
         public String getDmarcPolicy() {
@@ -287,6 +340,8 @@ public class EmailPlatformProperties {
         private int maxAttempts = 5;
         private long outboxPollMs = 500;
         private int rateLimitPerMinute = 120;
+        /** Must stay ≤ Postfix message_size_limit (10 MiB). */
+        private int maxRfc822Bytes = 10_485_760;
 
         public int getMaxRecipients() {
             return maxRecipients;
@@ -318,6 +373,189 @@ public class EmailPlatformProperties {
 
         public void setRateLimitPerMinute(int rateLimitPerMinute) {
             this.rateLimitPerMinute = rateLimitPerMinute;
+        }
+
+        public int getMaxRfc822Bytes() {
+            return maxRfc822Bytes;
+        }
+
+        public void setMaxRfc822Bytes(int maxRfc822Bytes) {
+            this.maxRfc822Bytes = maxRfc822Bytes;
+        }
+    }
+
+    /**
+     * Inbound DSN resource limits. Untrusted input; not an SMTP listener.
+     */
+    public static class Bounce {
+        private String domain = "bounce.texto.test";
+        /** Optional public inbound MX owner name for readiness diagnostics only. */
+        private String mxHostname = "";
+        private String spoolDirectory = "";
+        private int maxRfc822Bytes = 262_144;
+        private int maxMimeParts = 20;
+        private int maxMimeDepth = 8;
+        private int maxDiagnosticLength = 512;
+        private int maxHeaderLength = 255;
+        private int maxRecipients = 50;
+
+        public String getDomain() {
+            return domain;
+        }
+
+        public void setDomain(String domain) {
+            this.domain = domain;
+        }
+
+        public String getMxHostname() {
+            return mxHostname;
+        }
+
+        public void setMxHostname(String mxHostname) {
+            this.mxHostname = mxHostname;
+        }
+
+        public String getSpoolDirectory() {
+            return spoolDirectory;
+        }
+
+        public void setSpoolDirectory(String spoolDirectory) {
+            this.spoolDirectory = spoolDirectory;
+        }
+
+        public int getMaxRfc822Bytes() {
+            return maxRfc822Bytes;
+        }
+
+        public void setMaxRfc822Bytes(int maxRfc822Bytes) {
+            this.maxRfc822Bytes = maxRfc822Bytes;
+        }
+
+        public int getMaxMimeParts() {
+            return maxMimeParts;
+        }
+
+        public void setMaxMimeParts(int maxMimeParts) {
+            this.maxMimeParts = maxMimeParts;
+        }
+
+        public int getMaxMimeDepth() {
+            return maxMimeDepth;
+        }
+
+        public void setMaxMimeDepth(int maxMimeDepth) {
+            this.maxMimeDepth = maxMimeDepth;
+        }
+
+        public int getMaxDiagnosticLength() {
+            return maxDiagnosticLength;
+        }
+
+        public void setMaxDiagnosticLength(int maxDiagnosticLength) {
+            this.maxDiagnosticLength = maxDiagnosticLength;
+        }
+
+        public int getMaxHeaderLength() {
+            return maxHeaderLength;
+        }
+
+        public void setMaxHeaderLength(int maxHeaderLength) {
+            this.maxHeaderLength = maxHeaderLength;
+        }
+
+        public int getMaxRecipients() {
+            return maxRecipients;
+        }
+
+        public void setMaxRecipients(int maxRecipients) {
+            this.maxRecipients = maxRecipients;
+        }
+    }
+
+    /**
+     * Complaint / feedback-loop resource limits. Untrusted input; not a public FBL listener.
+     */
+    public static class Complaint {
+        private int maxPayloadBytes = 65_536;
+        private int maxProviderLength = 64;
+        private int maxProviderEventIdLength = 128;
+        private int maxMessageIdLength = 255;
+        private int maxRecipientLength = 320;
+        private int maxCorrelationTokenLength = 320;
+        private int maxDiagnosticLength = 512;
+        private int maxMetadataEntries = 16;
+        private int maxMetadataValueLength = 256;
+
+        public int getMaxPayloadBytes() {
+            return maxPayloadBytes;
+        }
+
+        public void setMaxPayloadBytes(int maxPayloadBytes) {
+            this.maxPayloadBytes = maxPayloadBytes;
+        }
+
+        public int getMaxProviderLength() {
+            return maxProviderLength;
+        }
+
+        public void setMaxProviderLength(int maxProviderLength) {
+            this.maxProviderLength = maxProviderLength;
+        }
+
+        public int getMaxProviderEventIdLength() {
+            return maxProviderEventIdLength;
+        }
+
+        public void setMaxProviderEventIdLength(int maxProviderEventIdLength) {
+            this.maxProviderEventIdLength = maxProviderEventIdLength;
+        }
+
+        public int getMaxMessageIdLength() {
+            return maxMessageIdLength;
+        }
+
+        public void setMaxMessageIdLength(int maxMessageIdLength) {
+            this.maxMessageIdLength = maxMessageIdLength;
+        }
+
+        public int getMaxRecipientLength() {
+            return maxRecipientLength;
+        }
+
+        public void setMaxRecipientLength(int maxRecipientLength) {
+            this.maxRecipientLength = maxRecipientLength;
+        }
+
+        public int getMaxCorrelationTokenLength() {
+            return maxCorrelationTokenLength;
+        }
+
+        public void setMaxCorrelationTokenLength(int maxCorrelationTokenLength) {
+            this.maxCorrelationTokenLength = maxCorrelationTokenLength;
+        }
+
+        public int getMaxDiagnosticLength() {
+            return maxDiagnosticLength;
+        }
+
+        public void setMaxDiagnosticLength(int maxDiagnosticLength) {
+            this.maxDiagnosticLength = maxDiagnosticLength;
+        }
+
+        public int getMaxMetadataEntries() {
+            return maxMetadataEntries;
+        }
+
+        public void setMaxMetadataEntries(int maxMetadataEntries) {
+            this.maxMetadataEntries = maxMetadataEntries;
+        }
+
+        public int getMaxMetadataValueLength() {
+            return maxMetadataValueLength;
+        }
+
+        public void setMaxMetadataValueLength(int maxMetadataValueLength) {
+            this.maxMetadataValueLength = maxMetadataValueLength;
         }
     }
 
@@ -351,6 +589,16 @@ public class EmailPlatformProperties {
 
     public static class Mta {
         private String implementation = "mailpit";
+        /**
+         * Application kill switch for Internet MX submission. Default false.
+         * Production Postfix submits to recipient MX only when this is true
+         * <em>and</em> the Postfix image has public delivery confirmed.
+         */
+        private boolean publicDeliveryEnabled = false;
+        /** SMTP identity FQDN (e.g. smtp.example.com). Not assumed to exist in DNS. */
+        private String hostname;
+        /** Documented outbound IPv4. Not used by the Java SMTP client. */
+        private String outboundIp;
         @NestedConfigurationProperty
         private final Smtp smtp = new Smtp();
 
@@ -362,17 +610,74 @@ public class EmailPlatformProperties {
             this.implementation = implementation;
         }
 
+        public boolean isPublicDeliveryEnabled() {
+            return publicDeliveryEnabled;
+        }
+
+        public void setPublicDeliveryEnabled(boolean publicDeliveryEnabled) {
+            this.publicDeliveryEnabled = publicDeliveryEnabled;
+        }
+
+        public String getHostname() {
+            return hostname;
+        }
+
+        public void setHostname(String hostname) {
+            this.hostname = hostname;
+        }
+
+        public String getOutboundIp() {
+            return outboundIp;
+        }
+
+        public void setOutboundIp(String outboundIp) {
+            this.outboundIp = outboundIp;
+        }
+
         public Smtp getSmtp() {
             return smtp;
+        }
+    }
+
+    public static class Ses {
+        private boolean enabled;
+        private String region = "ap-south-1";
+        /**
+         * Optional SES Configuration Set name. This is not the SNS topic/destination name.
+         */
+        private String configurationSetName;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getRegion() {
+            return region;
+        }
+
+        public void setRegion(String region) {
+            this.region = region;
+        }
+
+        public String getConfigurationSetName() {
+            return configurationSetName;
+        }
+
+        public void setConfigurationSetName(String configurationSetName) {
+            this.configurationSetName = configurationSetName;
         }
     }
 
     public static class Smtp {
         private String host = "localhost";
         private int port = 1025;
-        private int connectionTimeoutMs = 5_000;
-        private int readTimeoutMs = 5_000;
-        private int writeTimeoutMs = 5_000;
+        private int connectionTimeoutMs = 10_000;
+        private int readTimeoutMs = 30_000;
+        private int writeTimeoutMs = 30_000;
         private String ehloHostname = "texto.local";
         @NestedConfigurationProperty
         private final StartTls starttls = new StartTls();

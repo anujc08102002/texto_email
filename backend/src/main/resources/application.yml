@@ -55,6 +55,8 @@ management:
       enabled: true
     diskspace:
       enabled: false
+    mta:
+      enabled: true
 
 logging:
   structured:
@@ -75,31 +77,61 @@ email-platform:
     smtp-port: ${MAILPIT_SMTP_PORT:1025}
   mta:
     implementation: ${MTA_IMPLEMENTATION:mailpit}
+    public-delivery-enabled: ${EMAIL_PUBLIC_DELIVERY_ENABLED:false}
+    hostname: ${MTA_HOSTNAME:}
+    outbound-ip: ${MTA_OUTBOUND_IP:}
     smtp:
       host: ${MTA_SMTP_HOST:${MAILPIT_HOST:localhost}}
       port: ${MTA_SMTP_PORT:${MAILPIT_SMTP_PORT:1025}}
-      connection-timeout-ms: ${MTA_SMTP_CONNECTION_TIMEOUT_MS:5000}
-      read-timeout-ms: ${MTA_SMTP_READ_TIMEOUT_MS:5000}
-      write-timeout-ms: ${MTA_SMTP_WRITE_TIMEOUT_MS:5000}
+      connection-timeout-ms: ${MTA_SMTP_CONNECTION_TIMEOUT_MS:10000}
+      read-timeout-ms: ${MTA_SMTP_READ_TIMEOUT_MS:30000}
+      write-timeout-ms: ${MTA_SMTP_WRITE_TIMEOUT_MS:30000}
       ehlo-hostname: ${MTA_SMTP_EHLO_HOSTNAME:texto.local}
       starttls:
         enabled: ${MTA_SMTP_STARTTLS_ENABLED:false}
         required: ${MTA_SMTP_STARTTLS_REQUIRED:false}
       ssl:
         enabled: ${MTA_SMTP_SSL_ENABLED:false}
+  ses:
+    enabled: ${SES_ENABLED:false}
+    region: ${SES_REGION:ap-south-1}
+    configuration-set-name: ${SES_CONFIGURATION_SET_NAME:}
   domains:
     allow-platform-test-senders: ${ALLOW_PLATFORM_TEST_SENDERS:true}
     spf-include: ${SPF_INCLUDE:_spf.texto.email}
     spf-all-qualifier: ${SPF_ALL_QUALIFIER:~}
+    spf-authorize-outbound-ip: ${SPF_AUTHORIZE_OUTBOUND_IP:false}
+    spf-include-provisioned: ${SPF_INCLUDE_PROVISIONED:false}
     dkim-selector: ${DKIM_SELECTOR:texto}
+    dkim-key-encryption-key: ${DKIM_KEY_ENCRYPTION_KEY:}
     dmarc-policy: ${DMARC_POLICY:none}
     verify-max-per-minute: ${DOMAIN_VERIFY_MAX_PER_MINUTE:10}
     dns-timeout-ms: ${DNS_TIMEOUT_MS:2000}
   email:
     max-recipients: ${EMAIL_MAX_RECIPIENTS:50}
     max-attempts: ${EMAIL_MAX_ATTEMPTS:5}
+    max-rfc822-bytes: ${EMAIL_MAX_RFC822_BYTES:10485760}
     outbox-poll-ms: ${EMAIL_OUTBOX_POLL_MS:500}
     rate-limit-per-minute: ${EMAIL_RATE_LIMIT_PER_MINUTE:120}
+  bounce:
+    domain: ${BOUNCE_DOMAIN:bounce.texto.test}
+    mx-hostname: ${BOUNCE_MX_HOSTNAME:}
+    max-rfc822-bytes: ${BOUNCE_MAX_RFC822_BYTES:262144}
+    max-mime-parts: ${BOUNCE_MAX_MIME_PARTS:20}
+    max-mime-depth: ${BOUNCE_MAX_MIME_DEPTH:8}
+    max-diagnostic-length: ${BOUNCE_MAX_DIAGNOSTIC_LENGTH:512}
+    max-header-length: ${BOUNCE_MAX_HEADER_LENGTH:255}
+    max-recipients: ${BOUNCE_MAX_RECIPIENTS:50}
+  complaint:
+    max-payload-bytes: ${COMPLAINT_MAX_PAYLOAD_BYTES:65536}
+    max-provider-length: ${COMPLAINT_MAX_PROVIDER_LENGTH:64}
+    max-provider-event-id-length: ${COMPLAINT_MAX_PROVIDER_EVENT_ID_LENGTH:128}
+    max-message-id-length: ${COMPLAINT_MAX_MESSAGE_ID_LENGTH:255}
+    max-recipient-length: ${COMPLAINT_MAX_RECIPIENT_LENGTH:320}
+    max-correlation-token-length: ${COMPLAINT_MAX_CORRELATION_TOKEN_LENGTH:320}
+    max-diagnostic-length: ${COMPLAINT_MAX_DIAGNOSTIC_LENGTH:512}
+    max-metadata-entries: ${COMPLAINT_MAX_METADATA_ENTRIES:16}
+    max-metadata-value-length: ${COMPLAINT_MAX_METADATA_VALUE_LENGTH:256}
   webhooks:
     allow-http: ${WEBHOOKS_ALLOW_HTTP:false}
     max-attempts: ${WEBHOOKS_MAX_ATTEMPTS:5}

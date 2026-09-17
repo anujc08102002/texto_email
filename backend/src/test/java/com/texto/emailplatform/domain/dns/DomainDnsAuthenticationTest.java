@@ -36,6 +36,9 @@ class DomainDnsAuthenticationTest {
                 .isEqualTo(SpfRecord.Status.MISSING);
         assertThat(SpfRecord.match(List.of("google-site-verification=abc", generated), "_spf.texto.email", "~").isMatched()).isTrue();
         assertThat(SpfRecord.match(List.of("v=spf10 include:_spf.texto.email ~all"), "_spf.texto.email", "~").isMatched()).isFalse();
+        assertThat(SpfRecord.generate("_spf.texto.email", "~", "1.1.1.1")).isEqualTo("v=spf1 ip4:1.1.1.1 ~all");
+        assertThat(SpfRecord.match(List.of("v=spf1 ip4:1.1.1.1 ~all"), "_spf.texto.email", "~", "1.1.1.1").isMatched()).isTrue();
+        assertThat(SpfRecord.match(List.of("v=spf1 ip4:1.1.1.1 ~all"), "_spf.texto.email", "~").isMatched()).isFalse();
     }
 
     @Test

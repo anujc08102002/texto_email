@@ -14,7 +14,6 @@ import { ApiClientError } from "@/lib/api";
 import { cancelSubscription, getBillingConfig, type BillingConfig } from "@/services/billing";
 import { getEntitlements, getSubscription, getUsage } from "@/services/platform";
 import type { Entitlements, Plan, Subscription, UsageSnapshot } from "@/types/api";
-import { cn } from "@/lib/utils";
 
 function metric(usage: UsageSnapshot | null, code: string) {
   return usage?.metrics.find((item) => item.metric === code) ?? null;
@@ -82,7 +81,7 @@ export function BillingOverview({ plans }: { plans: Plan[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <SectionPanel title="Current plan" description="Internal subscription is the source of truth for entitlements">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -170,13 +169,13 @@ export function BillingOverview({ plans }: { plans: Plan[] }) {
         title="Available plans"
         description="Upgrade uses Razorpay TEST checkout; entitlements change only after webhook confirmation"
       >
-        <div className="divide-y divide-border/70">
-          {plans.map((plan, index) => {
+        <div className="grid gap-3 sm:grid-cols-2">
+          {plans.map((plan) => {
             const current = plan.code === subscription?.planCode;
             return (
               <div
                 key={plan.id}
-                className={cn("flex flex-wrap items-center justify-between gap-3 py-4", index === 0 && "pt-0")}
+                className="flex flex-col justify-between gap-3 rounded-2xl border border-border/70 bg-card/60 p-4"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -184,7 +183,7 @@ export function BillingOverview({ plans }: { plans: Plan[] }) {
                     {current ? <Badge variant="success">Current</Badge> : null}
                   </div>
                   <p className="mt-1 text-sm font-semibold">{plan.name}</p>
-                  <p className="mt-1 max-w-xl text-sm text-muted-foreground">{plan.description}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
                 </div>
                 <PlanCheckoutButton
                   planCode={plan.code}

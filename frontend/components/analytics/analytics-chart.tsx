@@ -2,6 +2,7 @@
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { SectionPanel } from "@/components/ops/section-panel";
+import { cn } from "@/lib/utils";
 import type { PresentationAnalyticsPoint } from "@/types/presentation";
 
 export function AnalyticsChart({
@@ -9,15 +10,19 @@ export function AnalyticsChart({
   description,
   data,
   preview = false,
+  className,
+  fill = false,
 }: {
   title: string;
   description?: string;
   data: PresentationAnalyticsPoint[];
   preview?: boolean;
+  className?: string;
+  fill?: boolean;
 }) {
   return (
-    <SectionPanel title={title} description={description} className="min-h-[320px]">
-      <div className="h-64">
+    <SectionPanel title={title} description={description} className={cn("min-w-0 overflow-hidden", className)}>
+      <div className={cn("min-w-0 overflow-hidden", fill ? "h-64 sm:h-72 lg:h-80" : "h-56 sm:h-64")}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>

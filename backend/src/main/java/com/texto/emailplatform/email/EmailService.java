@@ -54,6 +54,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p><b>Billing:</b> ONE RECIPIENT = ONE EMAIL UNIT. Quota is consumed for deliverable
  * recipients only (suppressed addresses are excluded and do not consume quota).
+ *
+ * <p><b>Send rate limit:</b> ONE ACCEPTED MESSAGE = ONE RATE-LIMIT UNIT, independent of
+ * recipient count. Enforced once at acceptance via Redis, after idempotency resolution
+ * and before monthly quota. Delivery retries do not consume another unit.
  */
 @Service
 public class EmailService {
@@ -68,6 +72,7 @@ public class EmailService {
     private final UsageService usageService;
     private final WebhookEventPublisher webhookEventPublisher;
     private final OutboxService outboxService;
+    private final EmailSendRateLimiter emailSendRateLimiter;
     private final EmailPlatformProperties properties;
 
     public EmailService(
@@ -81,6 +86,7 @@ public class EmailService {
             UsageService usageService,
             WebhookEventPublisher webhookEventPublisher,
             OutboxService outboxService,
+            EmailSendRateLimiter emailSendRateLimiter,
             EmailPlatformProperties properties
     ) {
         this.emailMessageRepository = emailMessageRepository;
@@ -93,29 +99,33 @@ public class EmailService {
         this.usageService = usageService;
         this.webhookEventPublisher = webhookEventPublisher;
         this.outboxService = outboxService;
+        this.emailSendRateLimiter = emailSendRateLimiter;
         this.properties = properties;
     }
 
-    @Transactional
+
+   @Transactional
     public EmailMessageResponse sendTest(SendTestEmailRequest request) {
+
         UUID tenantId = requireTenantId();
-        TenantEntity tenant = requireTenant(tenantId);
-        String from = "noreply@" + tenant.getSlug() + ".texto.test";
+
+        String from = request.from().trim();
+
         return sendInternal(
-                tenantId,
-                from,
-                List.of(request.to().trim()),
-                List.of(),
-                List.of(),
-                null,
-                request.subject().trim(),
-                null,
-                request.body(),
-                null,
-                null,
-                null,
-                null,
-                null
+            tenantId,
+            from,
+            List.of(request.to().trim()),
+            List.of(),
+            List.of(),
+            null,
+            request.subject().trim(),
+            null,
+            request.body(),
+            null,
+            null,
+            null,
+            null,
+            null
         );
     }
 
@@ -245,45 +255,52 @@ public class EmailService {
             return toResponse(suppressed);
         }
 
-        usageService.consumeQuota(tenantId, UsageMetrics.MONTHLY_EMAILS, buckets.deliverableCount());
-
-        EmailMessageEntity message = EmailMessageEntity.create(
-                tenantId,
-                from,
-                buckets.to(),
-                buckets.cc(),
-                buckets.bcc(),
-                buckets.suppressed(),
-                normalizedReplyTo,
-                resolvedSubject.trim(),
-                resolvedHtml,
-                resolvedText,
-                resolvedTemplateId,
-                resolvedTemplateVersionId,
-                normalizedKey,
-                safeMetadata,
-                properties.getEmail().getMaxAttempts(),
-                createdBy
-        );
+        EmailSendRateLimiter.Lease rateLimitLease = emailSendRateLimiter.acquire(tenantId);
         try {
-            message = emailMessageRepository.save(message);
-        } catch (DataIntegrityViolationException exception) {
-            return refetchIdempotent(tenantId, normalizedKey, exception);
-        }
+            usageService.consumeQuota(tenantId, UsageMetrics.MONTHLY_EMAILS, buckets.deliverableCount());
 
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("messageId", message.getId().toString());
-        payload.put("tenantId", tenantId.toString());
-        payload.put("attempt", 1);
-        outboxService.enqueue(
-                tenantId,
-                OutboxEventEntity.AGGREGATE_EMAIL_MESSAGE,
-                message.getId(),
-                OutboxEventEntity.EMAIL_DELIVERY_REQUESTED,
-                payload
-        );
-        webhookEventPublisher.publishEmailEvent(WebhookEventTypes.EMAIL_QUEUED, message);
-        return toResponse(message);
+            EmailMessageEntity message = EmailMessageEntity.create(
+                    tenantId,
+                    from,
+                    buckets.to(),
+                    buckets.cc(),
+                    buckets.bcc(),
+                    buckets.suppressed(),
+                    normalizedReplyTo,
+                    resolvedSubject.trim(),
+                    resolvedHtml,
+                    resolvedText,
+                    resolvedTemplateId,
+                    resolvedTemplateVersionId,
+                    normalizedKey,
+                    safeMetadata,
+                    properties.getEmail().getMaxAttempts(),
+                    createdBy
+            );
+            try {
+                message = emailMessageRepository.save(message);
+            } catch (DataIntegrityViolationException exception) {
+                emailSendRateLimiter.refund(rateLimitLease);
+                return refetchIdempotent(tenantId, normalizedKey, exception);
+            }
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("messageId", message.getId().toString());
+            payload.put("tenantId", tenantId.toString());
+            payload.put("attempt", 1);
+            outboxService.enqueue(
+                    tenantId,
+                    OutboxEventEntity.AGGREGATE_EMAIL_MESSAGE,
+                    message.getId(),
+                    OutboxEventEntity.EMAIL_DELIVERY_REQUESTED,
+                    payload
+            );
+            webhookEventPublisher.publishEmailEvent(WebhookEventTypes.EMAIL_QUEUED, message);
+            return toResponse(message);
+        } catch (RuntimeException exception) {
+            emailSendRateLimiter.refund(rateLimitLease);
+            throw exception;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -452,6 +469,8 @@ public class EmailService {
                 entity.getRecipientsCc(),
                 entity.getRecipientsBcc(),
                 entity.getSuppressedRecipients(),
+                entity.getBouncedRecipients(),
+                entity.getSoftBouncedRecipients(),
                 entity.getMetadata(),
                 entity.getProviderMessageId(),
                 entity.getAttemptCount(),
@@ -483,6 +502,8 @@ public class EmailService {
                 entity.getRecipientsCc(),
                 entity.getRecipientsBcc(),
                 entity.getSuppressedRecipients(),
+                entity.getBouncedRecipients(),
+                entity.getSoftBouncedRecipients(),
                 entity.getMetadata(),
                 entity.getProviderMessageId(),
                 entity.getAttemptCount(),

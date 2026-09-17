@@ -21,16 +21,13 @@ record SmtpEndpoint(
             host = properties.getMailpit().getHost();
         }
         int port = smtp.getPort() > 0 ? smtp.getPort() : properties.getMailpit().getSmtpPort();
-        String ehlo = smtp.getEhloHostname() == null || smtp.getEhloHostname().isBlank()
-                ? "texto.local"
-                : smtp.getEhloHostname();
         return new SmtpEndpoint(
                 host,
                 port,
                 smtp.getConnectionTimeoutMs(),
                 smtp.getReadTimeoutMs(),
                 smtp.getWriteTimeoutMs(),
-                ehlo,
+                resolveEhlo(properties),
                 smtp.getStarttls().isEnabled(),
                 smtp.getStarttls().isRequired(),
                 smtp.getSsl().isEnabled()
@@ -39,19 +36,28 @@ record SmtpEndpoint(
 
     static SmtpEndpoint postfix(EmailPlatformProperties properties) {
         var smtp = properties.getMta().getSmtp();
-        String ehlo = smtp.getEhloHostname() == null || smtp.getEhloHostname().isBlank()
-                ? "texto.local"
-                : smtp.getEhloHostname();
         return new SmtpEndpoint(
                 smtp.getHost(),
                 smtp.getPort(),
                 smtp.getConnectionTimeoutMs(),
                 smtp.getReadTimeoutMs(),
                 smtp.getWriteTimeoutMs(),
-                ehlo,
+                resolveEhlo(properties),
                 smtp.getStarttls().isEnabled(),
                 smtp.getStarttls().isRequired(),
                 smtp.getSsl().isEnabled()
         );
+    }
+
+    private static String resolveEhlo(EmailPlatformProperties properties) {
+        String ehlo = properties.getMta().getSmtp().getEhloHostname();
+        if (ehlo != null && !ehlo.isBlank()) {
+            return ehlo.trim();
+        }
+        String hostname = properties.getMta().getHostname();
+        if (hostname != null && !hostname.isBlank()) {
+            return hostname.trim();
+        }
+        return "texto.local";
     }
 }

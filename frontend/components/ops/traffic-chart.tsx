@@ -30,7 +30,7 @@ export function TrafficChart() {
       title="Email traffic"
       description="Sent · Delivered · Deferred · Bounced"
       action={
-        <div className="flex rounded-lg border border-border/70 bg-background/50 p-0.5">
+        <div className="flex flex-wrap rounded-lg border border-border/70 bg-background/50 p-0.5">
           {RANGES.map((item) => (
             <button
               key={item.id}
@@ -46,9 +46,9 @@ export function TrafficChart() {
           ))}
         </div>
       }
-      className="min-h-[320px]"
+      className="flex min-h-[280px] flex-1 flex-col"
     >
-      <div className="h-64">
+      <div className="h-64 min-h-[240px] flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
             <defs>

@@ -44,8 +44,8 @@ function DrawerContent({
       <DrawerPrimitive.Content
         className={cn(
           "group/drawer-content fixed z-50 flex h-auto flex-col bg-popover text-popover-foreground",
-          "data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0 data-[vaul-drawer-direction=left]:w-72 data-[vaul-drawer-direction=left]:border-r",
-          "data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:right-0 data-[vaul-drawer-direction=right]:w-72 data-[vaul-drawer-direction=right]:border-l",
+          "data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0 data-[vaul-drawer-direction=left]:w-[min(18rem,92vw)] data-[vaul-drawer-direction=left]:border-r",
+          "data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:right-0 data-[vaul-drawer-direction=right]:w-[min(18rem,92vw)] data-[vaul-drawer-direction=right]:border-l",
           "data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:mt-24 data-[vaul-drawer-direction=bottom]:rounded-t-lg data-[vaul-drawer-direction=bottom]:border-t",
           className,
         )}

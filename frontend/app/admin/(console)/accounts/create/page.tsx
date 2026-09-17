@@ -54,7 +54,7 @@ export default function AdminCreateAccountPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Platform admin"
         title="Create account"

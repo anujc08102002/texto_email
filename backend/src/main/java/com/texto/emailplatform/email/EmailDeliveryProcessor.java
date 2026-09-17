@@ -1,5 +1,6 @@
 package com.texto.emailplatform.email;
 
+import com.texto.emailplatform.bounce.BounceCorrelationToken;
 import com.texto.emailplatform.delivery.DeliveryEngine;
 import com.texto.emailplatform.email.domain.DeliveryAttemptEntity;
 import com.texto.emailplatform.email.domain.DeliveryAttemptRepository;
@@ -94,6 +95,11 @@ public class EmailDeliveryProcessor {
             return;
         }
 
+        if (message.getBounceCorrelationToken() == null) {
+            message.assignBounceCorrelationToken(BounceCorrelationToken.generate());
+            emailMessageRepository.save(message);
+        }
+
         DeliveryEngine.DeliveryResult result = deliveryEngine.deliver(new DeliveryEngine.DeliveryRequest(
                 tenantId,
                 message.getFromAddress(),
@@ -103,8 +109,10 @@ public class EmailDeliveryProcessor {
                 message.getReplyTo(),
                 message.getSubject(),
                 message.getTextBody(),
-                message.getHtmlBody()
+                message.getHtmlBody(),
+                message.getBounceCorrelationToken()
         ));
+        message.recordRfc822MessageId(result.rfc822MessageId());
 
         switch (result.outcome()) {
             case SUCCESS -> handleSuccess(message, attemptEntity, result);
@@ -122,6 +130,13 @@ public class EmailDeliveryProcessor {
         deliveryAttemptRepository.save(attemptEntity);
         message.markDelivered(result.providerMessageId(), result.providerResponse());
         emailMessageRepository.save(message);
+        log.info(
+                "MTA accepted messageId={} tenantId={} queueId={} smtpCode={} (handoff only; recipient delivery not confirmed)",
+                message.getId(),
+                message.getTenantId(),
+                result.providerMessageId(),
+                result.smtpCode()
+        );
         webhookEventPublisher.publishEmailEvent(WebhookEventTypes.EMAIL_DELIVERED, message);
     }
 
@@ -176,10 +191,11 @@ public class EmailDeliveryProcessor {
                     result.errorCategory() == null ? "permanent_bounce" : result.errorCategory(),
                     result.errorMessage()
             );
-            emailMessageRepository.save(message);
             for (String recipient : message.getRecipientsTo()) {
+                message.recordBouncedRecipient(recipient);
                 suppressionService.recordBounce(message.getTenantId(), recipient, message.getId(), "smtp_550");
             }
+            emailMessageRepository.save(message);
             webhookEventPublisher.publishEmailEvent(WebhookEventTypes.EMAIL_BOUNCED, message);
             return;
         }

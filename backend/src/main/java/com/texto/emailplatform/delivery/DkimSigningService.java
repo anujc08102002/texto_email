@@ -4,11 +4,10 @@ import com.texto.emailplatform.domain.DomainNormalizer;
 import com.texto.emailplatform.domain.DomainService;
 import com.texto.emailplatform.domain.DomainVerificationService;
 import com.texto.emailplatform.domain.PlatformSenderDomains;
+import com.texto.emailplatform.domain.dkim.DkimSigningMaterial;
 import com.texto.emailplatform.domain.domain.DomainEntity;
 import com.texto.emailplatform.domain.domain.DomainRepository;
-import java.security.PrivateKey;
 import java.util.LinkedHashMap;
-import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +34,7 @@ public class DkimSigningService {
     }
 
     @Transactional
-    public Optional<String> sign(
+    public String sign(
             UUID tenantId,
             String fromAddress,
             LinkedHashMap<String, String> headers,
@@ -43,15 +42,22 @@ public class DkimSigningService {
     ) {
         DomainEntity domain = resolveDomain(tenantId, fromAddress);
         if (domain == null) {
-            return Optional.empty();
+            throw new DkimSigningException("DKIM signing domain is unavailable");
         }
         try {
-            PrivateKey privateKey = domainVerificationService.requireDkimPrivateKey(domain);
-            String selector = domainVerificationService.dkimSelector(domain);
-            return Optional.of(DkimSigner.sign(domain.getDomain(), selector, privateKey, headers, body == null ? "" : body));
+            DkimSigningMaterial material = domainVerificationService.requireSigningMaterial(domain);
+            return DkimSigner.sign(
+                    domain.getDomain(),
+                    material.selector(),
+                    material.privateKey(),
+                    headers,
+                    body == null ? "" : body
+            );
+        } catch (DkimSigningException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            log.warn("DKIM signing skipped for {}: {}", domain.getDomain(), exception.getMessage());
-            return Optional.empty();
+            log.warn("DKIM signing failed domain={} type={}", domain.getDomain(), exception.getClass().getSimpleName());
+            throw new DkimSigningException("Unable to DKIM-sign the message");
         }
     }
 

@@ -71,7 +71,7 @@ export function WebhookDetail({ webhookId }: { webhookId: string }) {
   if (!webhook) return null;
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Developer"
         title="Webhook endpoint"

@@ -15,6 +15,10 @@ email-platform:
     api-docs-public: true
   billing:
     provider: noop
+  ses:
+    enabled: ${SES_ENABLED:false}
+    region: ${SES_REGION:ap-south-1}
+    configuration-set-name: ${SES_CONFIGURATION_SET_NAME:}
 
 springdoc:
   api-docs:

@@ -1,0 +1,3 @@
+# Virtual mailbox map. Entrypoint may rewrite the bounce domain.
+/@bounce\.texto\.test$/    bounce/
+/@texto\.test$/            texto.test/

@@ -28,10 +28,11 @@ Backend modules (packages inside one application):
 | `domain` | Future sending-domain verification |
 | `email` | Future transactional/bulk sending |
 | `template` | Future templates |
-| `queue` | RabbitMQ topology for outbound and bounce traffic |
+| `queue` | RabbitMQ topology for outbound, bounce, and complaint traffic |
 | `delivery` | SMTP MTA client (`mailpit` local mailbox; `postfix` controlled local MTA) |
 | `suppression` | Future suppression lists |
-| `bounce` | Future bounce processing |
+| `bounce` | RFC 3464 DSN ingest, token correlation, bounce policy (state + suppression). Not public inbound. |
+| `complaint` | Provider-neutral complaint/FBL ingest, token correlation, complaint suppression. Not public FBL. |
 | `analytics` | Future delivery analytics |
 | `common` | API envelope, errors, logging, security |
 
@@ -169,6 +170,9 @@ npm run build
 | `RABBITMQ_DEFAULT_PASS` | Docker RabbitMQ | `email_platform` |
 | `REDIS_HOST` | Backend | `localhost` |
 | `REDIS_PORT` | Backend | `6379` |
+| `EMAIL_RATE_LIMIT_PER_MINUTE` | Backend | `120` (accepted messages per tenant per UTC minute) |
+| `MTA_HOSTNAME` | Backend | empty locally; required public FQDN in `prod` |
+| `MTA_OUTBOUND_IP` | Backend | empty locally; required public IPv4 in `prod` |
 | `MAILPIT_HOST` | Backend | `localhost` |
 | `MAILPIT_SMTP_PORT` | Backend | `1025` |
 | `MTA_IMPLEMENTATION` | Backend | `mailpit` (`postfix` for controlled local Postfix) |
@@ -190,12 +194,12 @@ Actuator exposes only `health`. Sensitive management endpoints are not enabled.
 
 Transactional send acceptance is asynchronous:
 
-1. `POST /api/v1/emails` (optional `Idempotency-Key`) authorizes, validates sender/template, splits suppressed vs deliverable recipients, consumes **one email unit per deliverable recipient**, persists `QUEUED`, writes an outbox event `EMAIL_DELIVERY_REQUESTED`, and emits `email.queued`.
+1. `POST /api/v1/emails` (optional `Idempotency-Key`) authorizes, validates sender/template, splits suppressed vs deliverable recipients, enforces the tenant **message** send-rate limit (`email-platform.email.rate-limit-per-minute`), consumes **one email unit per deliverable recipient** (monthly quota), persists `QUEUED`, writes an outbox event `EMAIL_DELIVERY_REQUESTED`, and emits `email.queued`. See [docs/email-send-rate-limit.md](docs/email-send-rate-limit.md).
 2. `OutboxPublisher` polls unpublished outbox rows and publishes JSON jobs `{messageId, tenantId, attempt}` to RabbitMQ (`email.delivery.exchange` / `email.delivery.queue`).
-3. `EmailDeliveryWorker` transitions `QUEUED`/`DEFERRED` → `PROCESSING` → `SENDING`, records `delivery_attempts`, and calls `DeliveryEngine`. `SmtpDeliveryEngine` composes MIME, DKIM-signs, and submits via `MtaClient` (`mailpit` by default; `postfix` for controlled local Postfix). Public Internet delivery is not enabled. See [docs/mta-transport.md](docs/mta-transport.md).
+3. `EmailDeliveryWorker` transitions `QUEUED`/`DEFERRED` → `PROCESSING` → `SENDING`, records `delivery_attempts`, and calls `DeliveryEngine`. `SmtpDeliveryEngine` composes MIME, DKIM-signs from the persisted encrypted key, and submits via `MtaClient` (`mailpit` by default; `postfix` for controlled local Postfix). Public Internet delivery stays off unless the dual kill switch is enabled. See [docs/mta-transport.md](docs/mta-transport.md), [docs/dkim-key-custody.md](docs/dkim-key-custody.md), and [docs/production-smtp.md](docs/production-smtp.md).
 4. Outcomes: `DELIVERED`, temporary `DEFERRED` with TTL retry queues (30s → 2h), or permanent `FAILED` / `BOUNCED` (550), with matching webhooks.
 
-Config under `email-platform.email`: `max-recipients`, `max-attempts`, `outbox-poll-ms`, `rate-limit-per-minute`.
+Config under `email-platform.email`: `max-recipients`, `max-attempts`, `outbox-poll-ms`, `rate-limit-per-minute` (tenant-scoped accepted messages per UTC minute; Redis; fail-closed if Redis is down).
 
 ## Phase 6 — subscription billing (Razorpay TEST)
 

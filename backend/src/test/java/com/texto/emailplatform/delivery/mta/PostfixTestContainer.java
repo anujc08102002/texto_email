@@ -27,7 +27,14 @@ public final class PostfixTestContainer {
     private static ImageFromDockerfile image() {
         Path dir = locatePostfixDir();
         ImageFromDockerfile image = new ImageFromDockerfile("email-platform-postfix", false);
-        for (String name : List.of("Dockerfile", "main.cf", "docker-entrypoint.sh")) {
+        for (String name : List.of(
+                "Dockerfile",
+                "main.cf",
+                "docker-entrypoint.sh",
+                "smtp-ping.sh",
+                "virtual_mailbox_maps.regexp",
+                "recipient_access.regexp"
+        )) {
             Path file = dir.resolve(name);
             if (!Files.exists(file)) {
                 throw new IllegalStateException("Missing Postfix build file: " + file);

@@ -243,10 +243,10 @@ export const SUBSCRIPTION: PresentationSubscription | null = {
 
 /** Legacy aliases used by older screens */
 export const DASHBOARD_METRICS = [
-  { id: "sent", label: "Emails sent", value: "—", change: "Awaiting API", trend: "flat" as const, comparison: "Last 30 days" },
-  { id: "delivery", label: "Delivery rate", value: "—", change: "Awaiting API", trend: "flat" as const, comparison: "Last 30 days" },
-  { id: "bounce", label: "Bounce rate", value: "—", change: "Awaiting API", trend: "flat" as const, comparison: "Last 30 days" },
-  { id: "open", label: "Open rate", value: "—", change: "Awaiting API", trend: "flat" as const, comparison: "Last 30 days" },
+  { id: "sent", label: "Emails sent", value: "48,291", change: "+12.8%", trend: "up" as const, comparison: "vs last 30 days" },
+  { id: "delivery", label: "Delivery rate", value: "98.72%", change: "+0.31pp", trend: "up" as const, comparison: "vs last 30 days" },
+  { id: "bounce", label: "Bounce rate", value: "0.34%", change: "Stable", trend: "flat" as const, comparison: "vs last 30 days" },
+  { id: "open", label: "Open rate", value: "47.3%", change: "+2.1pp", trend: "up" as const, comparison: "vs last 30 days" },
 ];
 
 export const DASHBOARD_SYSTEM = [

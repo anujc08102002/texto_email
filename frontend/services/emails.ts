@@ -35,6 +35,11 @@ export function sendEmail(payload: SendEmailInput, idempotencyKey?: string) {
   );
 }
 
-export function sendTestEmail(payload: { to: string; subject: string; body: string }) {
+export function sendTestEmail(payload: {
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+}) {
   return apiPost<EmailMessage>("/api/v1/emails/test", payload);
 }

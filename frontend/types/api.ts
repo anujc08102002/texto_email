@@ -83,6 +83,8 @@ export type EmailMessage = {
   recipientsCc?: string[];
   recipientsBcc?: string[];
   suppressedRecipients?: string[];
+  bouncedRecipients?: string[];
+  softBouncedRecipients?: string[];
   metadata?: Record<string, unknown> | null;
   providerMessageId?: string | null;
   attemptCount?: number | null;

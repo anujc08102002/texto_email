@@ -13,6 +13,8 @@ import com.texto.emailplatform.delivery.DeliveryEngine;
 import com.texto.emailplatform.email.EmailDeliveryWorker;
 import com.texto.emailplatform.email.domain.EmailMessageEntity;
 import com.texto.emailplatform.email.domain.EmailMessageRepository;
+import com.texto.emailplatform.complaint.ComplaintIngestionRequest;
+import com.texto.emailplatform.complaint.ComplaintIngestionService;
 import com.texto.emailplatform.outbox.OutboxPublisher;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,6 +71,9 @@ class Phase5EmailPipelineIT {
 
     @Autowired
     private EmailMessageRepository emailMessageRepository;
+
+    @Autowired
+    private ComplaintIngestionService complaintIngestionService;
 
     @MockitoBean
     private DeliveryEngine deliveryEngine;
@@ -206,6 +211,79 @@ class Phase5EmailPipelineIT {
                 "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id = ?",
                 Integer.class,
                 UUID.fromString(messageId)
+        );
+        assertThat(outboxForMessage).isZero();
+    }
+
+    @Test
+    void complaintSuppressionPreventsFutureSendWithoutChangingDeliveredStatus() throws Exception {
+        String token = register();
+        String slug = tenantSlug(token);
+
+        MvcResult sent = mockMvc.perform(post("/api/v1/emails")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "from":"noreply@%s.texto.test",
+                                  "to":["alice@example.com"],
+                                  "subject":"Complaint path",
+                                  "text":"body"
+                                }
+                                """.formatted(slug)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("QUEUED"))
+                .andReturn();
+        String messageId = JsonPath.read(sent.getResponse().getContentAsString(), "$.data.id");
+        String tenantId = currentTenantId(token);
+
+        outboxPublisher.publishPending();
+        emailDeliveryWorker.process(UUID.fromString(messageId), UUID.fromString(tenantId), 1);
+
+        EmailMessageEntity delivered = emailMessageRepository.findById(UUID.fromString(messageId)).orElseThrow();
+        assertThat(delivered.getStatus()).isEqualTo(EmailMessageEntity.STATUS_DELIVERED);
+
+        complaintIngestionService.ingest(new ComplaintIngestionRequest(
+                "TEST",
+                "fbl-" + UUID.randomUUID(),
+                delivered.getRfc822MessageId(),
+                null,
+                "alice@example.com",
+                delivered.getBounceCorrelationToken(),
+                "ABUSE",
+                null,
+                java.util.Map.of()
+        ));
+
+        EmailMessageEntity after = emailMessageRepository.findById(UUID.fromString(messageId)).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo(EmailMessageEntity.STATUS_DELIVERED);
+
+        mockMvc.perform(get("/api/v1/suppressions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("search", "alice@example.com"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].type").value("COMPLAINT"))
+                .andExpect(jsonPath("$.data[0].reason").value("COMPLAINT"));
+
+        MvcResult suppressed = mockMvc.perform(post("/api/v1/emails")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "from":"noreply@%s.texto.test",
+                                  "to":["alice@example.com"],
+                                  "subject":"Should suppress",
+                                  "text":"no"
+                                }
+                                """.formatted(slug)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SUPPRESSED"))
+                .andReturn();
+        String suppressedId = JsonPath.read(suppressed.getResponse().getContentAsString(), "$.data.id");
+        Integer outboxForMessage = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id = ?",
+                Integer.class,
+                UUID.fromString(suppressedId)
         );
         assertThat(outboxForMessage).isZero();
     }

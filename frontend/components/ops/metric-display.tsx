@@ -38,7 +38,7 @@ export function MetricDisplay({
           "mt-2 font-semibold tracking-tight text-foreground tabular-nums",
           size === "hero" && "text-5xl sm:text-6xl",
           size === "lg" && "text-4xl",
-          size === "md" && "text-2xl",
+          size === "md" && "text-xl sm:text-2xl",
           size === "sm" && "text-xl",
         )}
       >

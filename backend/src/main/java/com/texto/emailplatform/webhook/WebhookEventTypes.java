@@ -7,6 +7,7 @@ public final class WebhookEventTypes {
     public static final String EMAIL_DELIVERED = "email.delivered";
     public static final String EMAIL_DEFERRED = "email.deferred";
     public static final String EMAIL_BOUNCED = "email.bounced";
+    public static final String EMAIL_COMPLAINT = "email.complaint";
     public static final String EMAIL_FAILED = "email.failed";
     public static final String EMAIL_SUPPRESSED = "email.suppressed";
     public static final String WEBHOOK_TEST = "webhook.test";

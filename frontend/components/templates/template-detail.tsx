@@ -72,7 +72,7 @@ export function TemplateDetail({ templateId }: { templateId: string }) {
   if (!template) return null;
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Workspace"
         title={template.name}

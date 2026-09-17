@@ -13,7 +13,7 @@ export function AdminBillingOpsScreen() {
   const pastDue = ADMIN_TENANTS.filter((t) => t.status === "past_due");
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Platform admin"
         title="Billing operations"

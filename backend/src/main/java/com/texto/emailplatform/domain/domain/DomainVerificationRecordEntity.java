@@ -116,6 +116,19 @@ public class DomainVerificationRecordEntity {
         this.privateKeyRef = privateKeyRef;
     }
 
+    public void assignKeyRef(String keyRef) {
+        this.privateKeyRef = keyRef;
+    }
+
+    public void syncDkimDns(String dnsValue, String publicKey, String selector, String keyRef) {
+        this.value = dnsValue;
+        this.publicKey = publicKey;
+        if (selector != null && !selector.isBlank()) {
+            this.selector = selector;
+        }
+        this.privateKeyRef = keyRef;
+    }
+
     public void replaceValue(String value) {
         this.value = value;
     }

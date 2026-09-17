@@ -18,6 +18,9 @@ management:
     health:
       show-details: always
       show-components: always
+  health:
+    mta:
+      enabled: false
 
 email-platform:
   security:
@@ -26,15 +29,21 @@ email-platform:
     allowed-origins: http://localhost:3000
   mta:
     implementation: mailpit
+    public-delivery-enabled: false
     smtp:
       starttls:
         enabled: false
         required: false
       ssl:
         enabled: false
+  ses:
+    enabled: false
+    region: ap-south-1
   domains:
     allow-platform-test-senders: true
     verify-max-per-minute: 60
+  bounce:
+    domain: bounce.texto.test
   email:
     max-recipients: 50
     max-attempts: 5

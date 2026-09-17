@@ -121,6 +121,66 @@ class SmtpSubmitterTest {
         }
     }
 
+    @Test
+    void mailFromIncludesEnvidWhenPresent() throws Exception {
+        AtomicReference<String> mailFrom = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        try (ServerSocket server = new ServerSocket(0)) {
+            Thread.startVirtualThread(() -> serveMailFrom(server, mailFrom, done));
+            SmtpEndpoint endpoint = endpoint(server.getLocalPort());
+            MtaResult result = new SmtpSubmitter().submit(
+                    endpoint,
+                    new MtaSubmitRequest(
+                            new SmtpEnvelope(
+                                    "bounce+0123456789abcdef0123456789abcdef@bounce.texto.test",
+                                    List.of("alice@texto.test"),
+                                    "0123456789abcdef0123456789abcdef"
+                            ),
+                            "From: noreply@acme.texto.test\r\nTo: alice@texto.test\r\nSubject: t\r\n\r\nbody\r\n"
+                                    .getBytes(StandardCharsets.UTF_8)
+                    )
+            );
+            assertThat(result.outcome()).isEqualTo(MtaOutcome.SUCCESS);
+            assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(mailFrom.get()).isEqualTo(
+                    "MAIL FROM:<bounce+0123456789abcdef0123456789abcdef@bounce.texto.test> ENVID=0123456789abcdef0123456789abcdef"
+            );
+        }
+    }
+
+    private static void serveMailFrom(ServerSocket server, AtomicReference<String> mailFrom, CountDownLatch done) {
+        try (Socket socket = server.accept();
+             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
+             BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.US_ASCII))) {
+            write(out, "220 mail.texto.test ESMTP");
+            readCommand(in);
+            write(out, "250-localhost");
+            write(out, "250 OK");
+            mailFrom.set(readCommandLine(in));
+            write(out, "250 OK");
+            readCommand(in);
+            write(out, "250 OK");
+            readCommand(in);
+            write(out, "354 End data with <CR><LF>.<CR><LF>");
+            String line;
+            while ((line = in.readLine()) != null) {
+                if (".".equals(line)) {
+                    break;
+                }
+            }
+            write(out, "250 Ok: queued as ENVID");
+            in.readLine();
+        } catch (Exception ignored) {
+            // test socket
+        } finally {
+            done.countDown();
+        }
+    }
+
+    private static String readCommandLine(BufferedReader in) throws Exception {
+        return in.readLine();
+    }
+
     private static void write(BufferedWriter out, String line) throws Exception {
         out.write(line);
         out.write("\r\n");

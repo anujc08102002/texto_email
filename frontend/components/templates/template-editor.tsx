@@ -93,7 +93,7 @@ export function TemplateEditor({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Workspace"
         title={mode === "create" ? "New template" : "New version"}

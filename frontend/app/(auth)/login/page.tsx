@@ -36,11 +36,12 @@ export default function LoginPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold tracking-tight">Workspace sign in</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="tech-label text-primary">Workspace</p>
+      <h1 className="font-display mt-2 text-4xl tracking-tight">Sign in</h1>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
         Use credentials issued by your platform administrator. Public registration is disabled.
       </p>
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+      <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input id="email" name="email" type="email" required autoComplete="email" />
@@ -49,7 +50,7 @@ export default function LoginPage() {
           <Label htmlFor="password">Password</Label>
           <Input id="password" name="password" type="password" required autoComplete="current-password" />
         </div>
-        <Button type="submit" className="w-full" loading={submitting}>
+        <Button type="submit" className="w-full" size="lg" loading={submitting}>
           Continue
         </Button>
       </form>
@@ -58,7 +59,7 @@ export default function LoginPage() {
           <AlertDescription>{message}</AlertDescription>
         </Alert>
       ) : null}
-      <p className="mt-6 text-sm text-muted-foreground">
+      <p className="mt-8 text-sm text-muted-foreground">
         Need an account? Contact your Texto administrator — they provision workspaces from the admin console.
       </p>
     </div>

@@ -71,7 +71,7 @@ public class SmtpSubmitter {
                         "STARTTLS is required but disabled"
                 );
             }
-            session.writeLine("MAIL FROM:<" + sanitizeAddress(envelope.mailFrom()) + ">");
+            session.writeLine(mailFromCommand(envelope));
             session.expect(250);
             for (String recipient : envelope.rcptTo()) {
                 session.writeLine("RCPT TO:<" + sanitizeAddress(recipient) + ">");
@@ -124,8 +124,20 @@ public class SmtpSubmitter {
         return sslSocket;
     }
 
+    static String mailFromCommand(SmtpEnvelope envelope) {
+        String command = "MAIL FROM:<" + sanitizeAddress(envelope.mailFrom()) + ">";
+        if (envelope.envelopeId() != null) {
+            command += " ENVID=" + sanitizeEnvid(envelope.envelopeId());
+        }
+        return command;
+    }
+
     private static String sanitizeAddress(String address) {
         return address == null ? "" : address.replaceAll("[\\r\\n<>]", "");
+    }
+
+    private static String sanitizeEnvid(String envelopeId) {
+        return envelopeId.replaceAll("[^A-Za-z0-9+/=_-]", "");
     }
 
     private record Ehlo(boolean startTls) {

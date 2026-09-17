@@ -7,8 +7,8 @@ import { EmailStatusBadge } from "@/components/emails/email-status-badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionPanel } from "@/components/ops/section-panel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -21,9 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApiClientError } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
+import { formatRelativeTime, initials } from "@/lib/format";
 import { listEmails } from "@/services/emails";
 import type { EmailMessage } from "@/types/api";
 
@@ -58,11 +57,11 @@ export default function EmailsPage() {
   }, [status, query]);
 
   return (
-    <div className="space-y-5">
+    <div className="flex h-full min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Workspace"
         title="Emails"
-        description="Async delivery activity. Status advances QUEUED → PROCESSING → SENDING → DELIVERED."
+        description="Delivery activity. Status advances QUEUED → PROCESSING → SENDING → DELIVERED."
         actions={
           <Button asChild>
             <Link href="/emails/new">Compose</Link>
@@ -70,7 +69,7 @@ export default function EmailsPage() {
         }
       />
 
-      <Alert variant="info">
+      <Alert variant="info" className="hidden sm:flex">
         <AlertDescription>
           Local delivery lands in Mailpit{" "}
           <a className="underline" href="http://localhost:8025" target="_blank" rel="noreferrer">
@@ -80,20 +79,20 @@ export default function EmailsPage() {
         </AlertDescription>
       </Alert>
 
-      <SectionPanel>
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+      <SectionPanel className="flex min-h-0 flex-1 flex-col">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row">
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search recipient, subject, or message ID"
-              className="pl-9"
+              className="h-10 rounded-full pl-10"
               aria-label="Search emails"
             />
           </div>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="sm:w-44" aria-label="Filter by status">
+            <SelectTrigger className="rounded-full sm:w-44" aria-label="Filter by status">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -113,6 +112,7 @@ export default function EmailsPage() {
         {loading ? <LoadingState label="Loading emails" /> : null}
         {error ? <ErrorState description={error} onRetry={() => reload()} /> : null}
         {!loading && !error && messages.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center py-10">
           <EmptyState
             icon={<Mail className="size-5" />}
             title="Send your first email"
@@ -123,62 +123,34 @@ export default function EmailsPage() {
               </Button>
             }
           />
+          </div>
         ) : null}
         {!loading && !error && messages.length > 0 ? (
           <>
-            <div className="hidden overflow-hidden rounded-lg border border-border bg-card md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Message ID</TableHead>
-                    <TableHead>Recipient</TableHead>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Delivered</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {messages.map((message) => (
-                    <TableRow key={message.id}>
-                      <TableCell>
-                        <Link href={`/emails/${message.id}`} className="font-mono text-xs hover:text-primary">
-                          {message.id}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{message.recipient}</TableCell>
-                      <TableCell className="max-w-xs truncate">{message.subject}</TableCell>
-                      <TableCell>
-                        <EmailStatusBadge status={message.status} />
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {formatDateTime(message.createdAt)}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {message.deliveredAt ? formatDateTime(message.deliveredAt) : "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="space-y-3 md:hidden">
+            <ul className="divide-y divide-border/70 overflow-hidden rounded-xl border border-border/70 bg-card">
               {messages.map((message) => (
-                <Link key={message.id} href={`/emails/${message.id}`}>
-                  <Card className="p-4 transition-colors hover:bg-muted/40">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-mono text-xs">{message.id}</p>
-                        <p className="mt-1 truncate text-sm font-medium">{message.recipient}</p>
-                        <p className="mt-1 truncate text-sm text-muted-foreground">{message.subject}</p>
+                <li key={message.id}>
+                  <Link
+                    href={`/emails/${message.id}`}
+                    className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-muted/50"
+                  >
+                    <Avatar className="size-9">
+                      <AvatarFallback>{initials(message.recipient)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium">{message.subject || "(no subject)"}</p>
+                        <EmailStatusBadge status={message.status} />
                       </div>
-                      <EmailStatusBadge status={message.status} />
+                      <p className="mt-0.5 truncate text-sm text-muted-foreground">{message.recipient}</p>
                     </div>
-                  </Card>
-                </Link>
+                    <p className="hidden shrink-0 text-xs text-muted-foreground sm:block">
+                      {formatRelativeTime(message.createdAt)}
+                    </p>
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
 
             <Pagination
               page={page + 1}

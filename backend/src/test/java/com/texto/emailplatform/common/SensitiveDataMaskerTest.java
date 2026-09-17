@@ -12,6 +12,9 @@ class SensitiveDataMaskerTest {
         assertThat(SensitiveDataMasker.mask("password", "super-secret")).isEqualTo("supe****");
         assertThat(SensitiveDataMasker.mask("api-key", "abcd1234")).isEqualTo("abcd****");
         assertThat(SensitiveDataMasker.mask("Authorization", "Bearer token-value")).isEqualTo("Bear****");
+        assertThat(SensitiveDataMasker.mask("encrypted_private_key", "dk1:ciphertext")).isEqualTo("dk1:****");
+        assertThat(SensitiveDataMasker.mask("DKIM_KEY_ENCRYPTION_KEY", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")).startsWith("AAAA");
+        assertThat(SensitiveDataMasker.mask("privateKeyRef", "pkcs8:MIIEvQ")).isEqualTo("pkcs****");
     }
 
     @Test

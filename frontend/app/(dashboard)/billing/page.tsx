@@ -18,7 +18,7 @@ export default async function BillingPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Account"
         title="Billing"

@@ -1,5 +1,23 @@
-# Controlled local Postfix for Texto development and integration tests.
-# Public Internet delivery is disabled. Destinations other than texto.test are rejected.
+# Controlled Texto Postfix.
+#
+# This file is a destination-locked development / pre-production MTA.
+# Public Internet delivery is DISABLED (default_transport / relay_transport = error).
+#
+# Directives are official postconf(5) names:
+#   http://www.postfix.org/postconf.5.html
+#   http://www.postfix.org/SMTPD_ACCESS_README.html
+#   http://www.postfix.org/TLS_README.html
+#
+# Protocol notes:
+#   RFC 5321  — SMTP (EHLO, MAIL FROM, RCPT TO, DATA, 220 greeting, timeouts)
+#   RFC 3207  — SMTP STARTTLS (application → Postfix and Postfix → MX are separate)
+#   RFC 6409  — Message Submission. This instance is an internal submission MTA on
+#               container port 25, published only to 127.0.0.1:2525 for local debug.
+#               It is not a publicly-referenced MX. A future submission service on
+#               587 is out of scope for this step.
+#
+# docker-entrypoint.sh overlays hostname, TLS, and network values from the environment
+# so production can use smtp.texto.email without source changes.
 
 smtpd_banner = $myhostname ESMTP
 biff = no
@@ -9,10 +27,15 @@ compatibility_level = 3.6
 maillog_file = /dev/stdout
 alias_maps =
 alias_database =
+disable_vrfy_command = yes
 
+# Identity. Overridden by POSTFIX_MYHOSTNAME / POSTFIX_MYDOMAIN / POSTFIX_SMTP_HELO_NAME.
+# Do not rely on the container's accidental hostname.
 myhostname = mail.texto.test
 mydomain = texto.test
 myorigin = $mydomain
+smtp_helo_name = $myhostname
+
 inet_interfaces = all
 inet_protocols = ipv4
 
@@ -21,33 +44,105 @@ mydestination = localhost
 local_transport = error:local unix delivery is disabled
 local_recipient_maps =
 
+# Trusted SMTP clients: loopback + RFC1918. Never 0.0.0.0/0.
+# Docker Compose / Testcontainers appear on 172.16/12. Host published-port
+# connections arrive via the bridge gateway, not as 0.0.0.0/0.
+# mynetworks only grants the right to talk to smtpd; it does NOT grant relay
+# to arbitrary destinations (see smtpd_relay_restrictions).
 mynetworks = 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
 relay_domains =
 relayhost =
 
-# Authorized destinations only (texto.test virtual mailbox). Do not permit
-# mynetworks clients to relay to arbitrary Internet recipients.
+# Open-relay prevention (Postfix ≥ 2.10 smtpd_relay_restrictions).
+# Official default is permit_mynetworks, permit_sasl_authenticated, defer_unauth_destination
+# which WOULD allow mynetworks clients to relay anywhere. That default is an open
+# relay on a Docker network. We evaluate reject_unauth_destination only:
+# authorized destinations are $mydestination, $virtual_mailbox_domains, $relay_domains.
+# texto.test is the local sink. bounce.texto.test is the controlled DSN mailbox domain.
+# relay_domains is empty. Do not add permit_mynetworks or permit_all here.
 smtpd_relay_restrictions = reject_unauth_destination
-smtpd_recipient_restrictions = reject_unauth_destination
+smtpd_recipient_restrictions = check_recipient_access regexp:/etc/postfix/recipient_access.regexp, reject_unauth_destination
+smtpd_client_restrictions = permit_mynetworks, reject
+smtpd_helo_required = yes
 smtpd_sasl_auth_enable = no
+smtpd_delay_reject = yes
 
-# Safety net: never perform downstream MX delivery from this development MTA.
-default_transport = error:public Internet delivery is disabled in this development MTA
-relay_transport = error:public Internet delivery is disabled in this development MTA
+# Safety net: never perform downstream MX delivery from this MTA.
+# Public Internet activation is a later infrastructure step, not a transport flip.
+default_transport = error:public Internet delivery is disabled in this MTA
+relay_transport = error:public Internet delivery is disabled in this MTA
 
-virtual_mailbox_domains = texto.test
+virtual_mailbox_domains = texto.test bounce.texto.test
 virtual_mailbox_base = /var/mail
-virtual_mailbox_maps = static:texto.test/
+virtual_mailbox_maps = regexp:/etc/postfix/virtual_mailbox_maps.regexp
 virtual_alias_maps =
 virtual_minimum_uid = 100
 virtual_uid_maps = static:100
 virtual_gid_maps = static:101
 virtual_mailbox_limit = 0
 
-# Local integration uses plaintext SMTP. Production TLS is configured in the application, not here.
+# DKIM: the application submits an already-signed RFC 822 message.
+# Disable SMTP-client header rewriting so From/To/Message-ID are not completed
+# with $myorigin (would invalidate DKIM h=). Postfix still prepends Received,
+# which is not in the application's signed header set.
+local_header_rewrite_clients =
+enable_original_recipient = yes
+recipient_delimiter = +
+home_mailbox =
+
+# TLS — two different connections (RFC 3207):
+#   smtpd_*  Application → Postfix (submission)
+#   smtp_*   Postfix → recipient MX (not used while default_transport=error)
+# Local: none. Production overlay sets smtpd=encrypt (internal submission) and
+# smtp=may (opportunistic TLS to MX; do not require TLS of every recipient MX).
+# RFC 2487 / Postfix TLS_README: smtpd encrypt MUST NOT be used on a
+# publicly-referenced MX. This instance is not a public MX.
 smtpd_tls_security_level = none
 smtp_tls_security_level = none
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtpd_tls_loglevel = 0
+smtp_tls_loglevel = 0
+smtpd_tls_session_cache_database =
+smtp_tls_session_cache_database =
 
-enable_original_recipient = yes
-recipient_delimiter =
-home_mailbox =
+# RFC 5321 timeout ballpark, bounded for an internal submission MTA.
+# Application client timeouts are separate (see docs/mta-transport.md).
+smtpd_timeout = 120s
+smtpd_starttls_timeout = 60s
+smtp_connect_timeout = 30s
+smtp_helo_timeout = 60s
+smtp_mail_timeout = 60s
+smtp_rcpt_timeout = 60s
+smtp_data_init_timeout = 60s
+smtp_data_xfer_timeout = 120s
+smtp_data_done_timeout = 120s
+smtp_quit_timeout = 30s
+
+# 10 MiB — Postfix default message_size_limit. Keep application max-rfc822-bytes in sync.
+message_size_limit = 10485760
+mailbox_size_limit = 51200000
+
+# Align recipient count with email-platform.email.max-recipients (50).
+smtpd_recipient_limit = 50
+
+# Basic abuse / resource protection. Not tenant quotas (those stay in the app).
+default_process_limit = 20
+smtpd_client_connection_count_limit = 10
+smtpd_client_connection_rate_limit = 30
+smtpd_client_message_rate_limit = 60
+smtpd_error_sleep_time = 1s
+smtpd_soft_error_limit = 10
+smtpd_hard_error_limit = 20
+anvil_rate_time_unit = 60s
+
+# Queue: unused for texto.test (virtual delivery is immediate) and unused for
+# rejected unauth destinations (rejected at RCPT TO). Values apply if the public
+# delivery overlay enables smtp transport. They do not replace application
+# RabbitMQ retries, which only cover MTA handoff.
+maximal_queue_lifetime = 1d
+bounce_queue_lifetime = 1d
+maximal_backoff_time = 4000s
+minimal_backoff_time = 300s
+queue_run_delay = 300s
+smtp_destination_concurrency_limit = 10
+smtp_destination_recipient_limit = 50

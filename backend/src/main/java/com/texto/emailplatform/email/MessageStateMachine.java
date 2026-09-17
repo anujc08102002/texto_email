@@ -25,8 +25,8 @@ public final class MessageStateMachine {
             Map.entry(QUEUED, Set.of(PROCESSING, SUPPRESSED, CANCELLED, EXPIRED)),
             Map.entry(PROCESSING, Set.of(SENDING, FAILED, CANCELLED)),
             Map.entry(SENDING, Set.of(DELIVERED, DEFERRED, FAILED, BOUNCED)),
-            Map.entry(DEFERRED, Set.of(QUEUED, PROCESSING, FAILED, EXPIRED)),
-            Map.entry(DELIVERED, Set.of()),
+            Map.entry(DEFERRED, Set.of(QUEUED, PROCESSING, FAILED, EXPIRED, BOUNCED)),
+            Map.entry(DELIVERED, Set.of(BOUNCED)),
             Map.entry(FAILED, Set.of()),
             Map.entry(BOUNCED, Set.of()),
             Map.entry(SUPPRESSED, Set.of()),
@@ -35,6 +35,10 @@ public final class MessageStateMachine {
     );
 
     private MessageStateMachine() {
+    }
+
+    public static boolean canTransition(String from, String to) {
+        return ALLOWED.getOrDefault(from, Set.of()).contains(to);
     }
 
     public static void assertTransition(String from, String to) {

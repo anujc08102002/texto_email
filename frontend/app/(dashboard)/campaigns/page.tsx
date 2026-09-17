@@ -6,7 +6,7 @@ import { Megaphone } from "lucide-react";
 
 export default function CampaignsPage() {
   return (
-    <div>
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Workspace"
         title="Campaigns"
@@ -17,7 +17,7 @@ export default function CampaignsPage() {
           </Button>
         }
       />
-      <SectionPanel>
+      <SectionPanel className="flex min-h-0 flex-1 flex-col">
         <EmptyState
           icon={<Megaphone className="size-5" />}
           title="No campaigns yet"

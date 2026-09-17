@@ -1,6 +1,8 @@
 package com.texto.emailplatform.email.domain;
 
+import com.texto.emailplatform.bounce.BounceCorrelationToken;
 import com.texto.emailplatform.email.MessageStateMachine;
+import com.texto.emailplatform.suppression.EmailNormalizer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -77,6 +79,14 @@ public class EmailMessageEntity {
     private List<String> suppressedRecipients = new ArrayList<>();
 
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "bounced_recipients", nullable = false, columnDefinition = "jsonb")
+    private List<String> bouncedRecipients = new ArrayList<>();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "soft_bounced_recipients", nullable = false, columnDefinition = "jsonb")
+    private List<String> softBouncedRecipients = new ArrayList<>();
+
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", nullable = false, columnDefinition = "jsonb")
     private Map<String, Object> metadata = new LinkedHashMap<>();
 
@@ -94,6 +104,12 @@ public class EmailMessageEntity {
 
     @Column(name = "provider_message_id", length = 255)
     private String providerMessageId;
+
+    @Column(name = "rfc822_message_id", length = 255)
+    private String rfc822MessageId;
+
+    @Column(name = "bounce_correlation_token", length = 32)
+    private String bounceCorrelationToken;
 
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
@@ -160,6 +176,8 @@ public class EmailMessageEntity {
         entity.recipientsCc = copyList(recipientsCc);
         entity.recipientsBcc = copyList(recipientsBcc);
         entity.suppressedRecipients = copyList(suppressedRecipients);
+        entity.bouncedRecipients = new ArrayList<>();
+        entity.softBouncedRecipients = new ArrayList<>();
         entity.metadata = metadata == null ? new LinkedHashMap<>() : new LinkedHashMap<>(metadata);
         entity.subject = subject;
         entity.htmlBody = htmlBody;
@@ -171,6 +189,7 @@ public class EmailMessageEntity {
         entity.createdBy = createdBy;
         entity.recipient = primaryRecipient(entity.recipientsTo, entity.recipientsCc, entity.recipientsBcc, entity.suppressedRecipients);
         entity.status = STATUS_QUEUED;
+        entity.bounceCorrelationToken = BounceCorrelationToken.generate();
         entity.queuedAt = now;
         entity.createdAt = now;
         entity.updatedAt = now;
@@ -274,6 +293,105 @@ public class EmailMessageEntity {
         touch();
     }
 
+    /**
+     * Records a hard-bounced recipient without altering the stored address string.
+     * @return true if the address was newly added
+     */
+    public boolean recordBouncedRecipient(String recipient) {
+        if (recipient == null || recipient.isBlank()) {
+            return false;
+        }
+        if (containsNormalized(bouncedRecipients, recipient)) {
+            return false;
+        }
+        bouncedRecipients.add(recipient);
+        touch();
+        return true;
+    }
+
+    /**
+     * Records a soft-bounced recipient. Does not suppress and does not change message status.
+     */
+    public boolean recordSoftBouncedRecipient(String recipient) {
+        if (recipient == null || recipient.isBlank()) {
+            return false;
+        }
+        if (containsNormalized(softBouncedRecipients, recipient)) {
+            return false;
+        }
+        softBouncedRecipients.add(recipient);
+        touch();
+        return true;
+    }
+
+    /**
+     * Post-MTA DSN may bounce a previously accepted (DELIVERED) handoff, or an in-flight DEFERRED send.
+     * @return true if the message status became {@code BOUNCED}
+     */
+    public boolean markBouncedIfAllowed(String reason, String providerResponse) {
+        if (STATUS_BOUNCED.equals(this.status)) {
+            return false;
+        }
+        if (!MessageStateMachine.canTransition(this.status, STATUS_BOUNCED)) {
+            return false;
+        }
+        markBounced(reason, providerResponse);
+        return true;
+    }
+
+    public boolean allDeliverableRecipientsBounced() {
+        List<String> deliverable = new ArrayList<>();
+        deliverable.addAll(recipientsTo);
+        deliverable.addAll(recipientsCc);
+        deliverable.addAll(recipientsBcc);
+        if (deliverable.isEmpty()) {
+            return false;
+        }
+        for (String recipient : deliverable) {
+            if (!containsNormalized(bouncedRecipients, recipient)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean containsNormalized(List<String> stored, String candidate) {
+        String want = EmailNormalizer.normalize(candidate);
+        if (want.isEmpty()) {
+            return false;
+        }
+        for (String value : stored) {
+            if (want.equals(EmailNormalizer.normalize(value))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void assignBounceCorrelationToken(String token) {
+        if (this.bounceCorrelationToken != null || token == null || token.isBlank()) {
+            return;
+        }
+        String normalized = BounceCorrelationToken.normalize(token);
+        if (normalized == null) {
+            return;
+        }
+        this.bounceCorrelationToken = normalized;
+        touch();
+    }
+
+    /**
+     * Records the RFC 822 Message-ID emitted at compose time. Does not change delivery status.
+     * First write wins so retries do not rotate the correlation identifier.
+     */
+    public void recordRfc822MessageId(String rfc822MessageId) {
+        if (this.rfc822MessageId != null || rfc822MessageId == null || rfc822MessageId.isBlank()) {
+            return;
+        }
+        this.rfc822MessageId = rfc822MessageId.length() <= 255 ? rfc822MessageId : rfc822MessageId.substring(0, 255);
+        touch();
+    }
+
     private void touch() {
         this.updatedAt = Instant.now();
     }
@@ -366,6 +484,14 @@ public class EmailMessageEntity {
         return suppressedRecipients;
     }
 
+    public List<String> getBouncedRecipients() {
+        return bouncedRecipients;
+    }
+
+    public List<String> getSoftBouncedRecipients() {
+        return softBouncedRecipients;
+    }
+
     public Map<String, Object> getMetadata() {
         return metadata;
     }
@@ -388,6 +514,14 @@ public class EmailMessageEntity {
 
     public String getProviderMessageId() {
         return providerMessageId;
+    }
+
+    public String getRfc822MessageId() {
+        return rfc822MessageId;
+    }
+
+    public String getBounceCorrelationToken() {
+        return bounceCorrelationToken;
     }
 
     public int getAttemptCount() {

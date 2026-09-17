@@ -17,6 +17,16 @@ public interface EmailMessageRepository extends JpaRepository<EmailMessageEntity
 
     Optional<EmailMessageEntity> findByTenantIdAndIdempotencyKey(UUID tenantId, String idempotencyKey);
 
+    Optional<EmailMessageEntity> findByTenantIdAndRfc822MessageId(UUID tenantId, String rfc822MessageId);
+
+    Optional<EmailMessageEntity> findByTenantIdAndProviderMessageId(UUID tenantId, String providerMessageId);
+
+    Optional<EmailMessageEntity> findByBounceCorrelationToken(String bounceCorrelationToken);
+
+    List<EmailMessageEntity> findByRfc822MessageId(String rfc822MessageId);
+
+    List<EmailMessageEntity> findByProviderMessageId(String providerMessageId);
+
     Page<EmailMessageEntity> findByTenantId(UUID tenantId, Pageable pageable);
 
     Page<EmailMessageEntity> findByTenantIdAndStatus(UUID tenantId, String status, Pageable pageable);

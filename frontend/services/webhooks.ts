@@ -7,6 +7,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "email.delivered",
   "email.deferred",
   "email.bounced",
+  "email.complaint",
   "email.failed",
   "email.suppressed",
 ] as const;

@@ -16,7 +16,12 @@ public final class SensitiveDataMasker {
             "accesstoken",
             "refreshtoken",
             "paymentsecret",
-            "cardnumber"
+            "privatekey",
+            "privatekeyref",
+            "encryptedprivatekey",
+            "dkimkeyencryptionkey",
+            "dkim",
+            "smtppassword"
     );
 
     private SensitiveDataMasker() {
@@ -28,7 +33,7 @@ public final class SensitiveDataMasker {
         }
         String normalized = key == null ? "" : key.toLowerCase(Locale.ROOT).replace("-", "").replace("_", "");
         if (SENSITIVE_KEYS.contains(normalized) || normalized.contains("password") || normalized.contains("secret")
-                || normalized.contains("token") || normalized.contains("apikey")) {
+                || normalized.contains("token") || normalized.contains("apikey") || normalized.contains("privatekey")) {
             return maskValue(value);
         }
         return value;

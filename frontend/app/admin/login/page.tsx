@@ -53,48 +53,57 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="bg-app relative min-h-screen overflow-hidden">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-[-8rem] left-1/2 h-80 w-[40rem] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-      </div>
-      <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
-        <div className="rounded-2xl border border-border/80 bg-card/80 p-8 shadow-md backdrop-blur-xl">
-          <Brand href="/admin/login" />
-          <div className="mt-3 inline-flex rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.14em] text-primary uppercase">
-            Platform admin
+    <main className="grid min-h-dvh lg:grid-cols-2">
+      <aside className="bg-rail relative hidden overflow-hidden px-12 py-10 text-sidebar-foreground lg:flex lg:flex-col">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-16 top-0 h-72 w-72 rounded-full bg-primary/35 blur-3xl" />
+        </div>
+        <Brand href="/" inverted />
+        <div className="relative mt-auto max-w-md pb-6">
+          <p className="inline-flex rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase">
+            Control plane
+          </p>
+          <p className="font-display mt-5 text-4xl leading-[1.05] tracking-tight">
+            Tenant oversight, billing ops, and platform controls.
+          </p>
+        </div>
+      </aside>
+      <div className="bg-app flex min-h-dvh flex-col justify-center px-5 py-10 sm:px-8">
+        <div className="mx-auto w-full max-w-[26rem]">
+          <div className="mb-8 lg:hidden">
+            <Brand href="/admin/login" />
           </div>
-          <div className="mt-6">
-            <h1 className="text-xl font-semibold tracking-tight">Admin sign in</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Separate console for tenant oversight. Tenant workspaces use{" "}
-              <Link href="/login" className="text-primary hover:underline">
-                workspace sign in
-              </Link>
-              .
-            </p>
-            <form onSubmit={onSubmit} className="mt-6 space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Admin email</Label>
-                <Input id="email" name="email" type="email" required autoComplete="username" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" name="password" type="password" required autoComplete="current-password" />
-              </div>
-              <Button type="submit" className="w-full" loading={submitting}>
-                Enter control plane
-              </Button>
-            </form>
-            {message ? (
-              <Alert variant="error" className="mt-4">
-                <AlertDescription>{message}</AlertDescription>
-              </Alert>
-            ) : null}
-            <p className="mt-6 text-[11px] text-muted-foreground">
-              Credentials are configured via <code className="font-mono">ADMIN_EMAIL</code> /{" "}
-              <code className="font-mono">ADMIN_PASSWORD</code> in the frontend environment.
-            </p>
-          </div>
+          <p className="tech-label text-primary">Platform admin</p>
+          <h1 className="font-display mt-2 text-4xl tracking-tight">Sign in</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Separate console for tenant oversight. Tenant workspaces use{" "}
+            <Link href="/login" className="text-primary hover:underline">
+              workspace sign in
+            </Link>
+            .
+          </p>
+          <form onSubmit={onSubmit} className="mt-8 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Admin email</Label>
+              <Input id="email" name="email" type="email" required autoComplete="username" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" name="password" type="password" required autoComplete="current-password" />
+            </div>
+            <Button type="submit" className="w-full" size="lg" loading={submitting}>
+              Enter control plane
+            </Button>
+          </form>
+          {message ? (
+            <Alert variant="error" className="mt-4">
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          ) : null}
+          <p className="mt-8 text-[11px] text-muted-foreground">
+            Credentials are configured via <code className="font-mono">ADMIN_EMAIL</code> /{" "}
+            <code className="font-mono">ADMIN_PASSWORD</code> in the frontend environment.
+          </p>
         </div>
       </div>
     </main>

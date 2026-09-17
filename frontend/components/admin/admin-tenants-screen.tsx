@@ -42,7 +42,7 @@ export function AdminTenantsScreen() {
   }, [filter, query]);
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Platform admin"
         title="Tenants"
@@ -50,13 +50,13 @@ export function AdminTenantsScreen() {
       />
       <AdminPreviewBanner />
 
-      <SectionPanel>
+      <SectionPanel className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search organization, email, slug, or tenant id"
-            className="max-w-md"
+            className="w-full min-w-0 lg:max-w-md"
           />
           <div className="flex flex-wrap gap-1 rounded-lg border border-border/70 bg-muted/40 p-0.5">
             {FILTERS.map((item) => (
@@ -130,11 +130,18 @@ export function AdminTenantsScreen() {
               className="block rounded-xl border border-border/70 bg-card/60 p-3"
             >
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-medium">{tenant.organization}</p>
-                  <p className="mt-1 font-mono text-[11px] text-muted-foreground">{tenant.ownerEmail}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{tenant.organization}</p>
+                  <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{tenant.ownerEmail}</p>
                 </div>
                 <TenantStatusBadge status={tenant.status} />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">{tenant.planName}</span>
+                <span className="font-mono text-[11px] text-muted-foreground">{tenant.usagePct}%</span>
+                <Badge variant={tenant.risk === "high" ? "error" : tenant.risk === "medium" ? "warning" : "success"}>
+                  {tenant.risk}
+                </Badge>
               </div>
             </Link>
           ))}

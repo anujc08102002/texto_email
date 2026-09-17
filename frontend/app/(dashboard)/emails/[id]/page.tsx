@@ -7,6 +7,7 @@ import { DeliveryTimeline } from "@/components/emails/delivery-timeline";
 import { EmailStatusBadge } from "@/components/emails/email-status-badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionPanel } from "@/components/ops/section-panel";
+import { HtmlPreview } from "@/components/templates/html-preview";
 import { Button } from "@/components/ui/button";
 import { CodeBlock } from "@/components/ui/code-block";
 import { ErrorState } from "@/components/ui/error-state";
@@ -67,7 +68,7 @@ export default function EmailDetailPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Workspace"
         title={message.subject}
@@ -110,6 +111,16 @@ export default function EmailDetailPage() {
           <DeliveryTimeline status={message.status} />
         </SectionPanel>
       </div>
+
+      {message.htmlBody || message.textBody ? (
+        <SectionPanel title="Rendered body">
+          {message.htmlBody ? (
+            <HtmlPreview html={message.htmlBody} title="Message body" />
+          ) : (
+            <pre className="whitespace-pre-wrap rounded-xl bg-muted/40 p-4 text-sm leading-6">{message.textBody}</pre>
+          )}
+        </SectionPanel>
+      ) : null}
 
       <SectionPanel title="Delivery attempts">
         {(message.attempts ?? []).length === 0 ? (

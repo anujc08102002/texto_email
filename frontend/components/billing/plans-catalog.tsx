@@ -42,7 +42,7 @@ export function PlansCatalog() {
   }, []);
 
   return (
-    <div>
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Account"
         title="Plans"
@@ -57,7 +57,7 @@ export function PlansCatalog() {
       {error ? <ErrorState description={error} /> : null}
       {!loading && !error ? (
         <SectionPanel title="Plan catalog" description="FREE is self-serve; ENTERPRISE is sales-assisted">
-          <div className="divide-y divide-border/70">
+          <div className="grid gap-4 lg:grid-cols-2">
             {plans.map((plan) => {
               const enabledFeatures = Object.entries(plan.features ?? {})
                 .filter(([, enabled]) => enabled)
@@ -66,9 +66,9 @@ export function PlansCatalog() {
               return (
                 <div
                   key={plan.id}
-                  className="flex flex-wrap items-start justify-between gap-4 py-5 first:pt-0 last:pb-0"
+                  className="flex h-full flex-col justify-between gap-4 rounded-2xl border border-border/70 bg-card/60 p-4 sm:p-5"
                 >
-                  <div className="min-w-0 max-w-3xl">
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary">{plan.code}</p>
                       <Badge variant={plan.active ? "success" : "secondary"}>
@@ -105,7 +105,9 @@ export function PlansCatalog() {
                       </div>
                     </div>
                   </div>
-                  <PlanCheckoutButton planCode={plan.code} currentPlanCode={subscription?.planCode} />
+                  <div className="flex justify-end">
+                    <PlanCheckoutButton planCode={plan.code} currentPlanCode={subscription?.planCode} />
+                  </div>
                 </div>
               );
             })}

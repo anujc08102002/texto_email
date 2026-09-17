@@ -1,0 +1,6 @@
+# Only expected bounce+<32hex> addresses on the bounce domain, plus the local texto.test sink.
+# Unexpected bounce-domain local parts are rejected. External destinations fall through
+# to reject_unauth_destination (open-relay prevention is unchanged).
+/^bounce\+[A-Fa-f0-9]{32}@bounce\.texto\.test$/  OK
+/@bounce\.texto\.test$/                          REJECT unexpected bounce address
+/@texto\.test$/                                  DUNNO

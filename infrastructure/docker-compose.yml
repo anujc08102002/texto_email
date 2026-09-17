@@ -1,5 +1,11 @@
 name: email-platform
 
+# Application services share texto_app. SMTP is not published on 0.0.0.0.
+# 127.0.0.1:2525 exists so the host-run Java API can submit to Postfix in local debug.
+networks:
+  texto_app:
+    driver: bridge
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -13,6 +19,7 @@ services:
       - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks: [texto_app]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-email_platform} -d ${POSTGRES_DB:-email_platform}"]
       interval: 5s
@@ -29,6 +36,7 @@ services:
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
+    networks: [texto_app]
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -45,6 +53,7 @@ services:
       - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
+    networks: [texto_app]
     command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -61,6 +70,7 @@ services:
       - "127.0.0.1:8025:8025"
     volumes:
       - mailpit_data:/data
+    networks: [texto_app]
     environment:
       MP_DATABASE: /data/mailpit.db
     healthcheck:
@@ -76,12 +86,25 @@ services:
     image: email-platform-postfix:local
     container_name: email-platform-postfix
     restart: unless-stopped
+    networks: [texto_app]
     ports:
+      # Host-run API/debug only. Not a public listener.
       - "127.0.0.1:2525:25"
+    environment:
+      POSTFIX_MYHOSTNAME: ${POSTFIX_MYHOSTNAME:-mail.texto.test}
+      POSTFIX_MYDOMAIN: ${POSTFIX_MYDOMAIN:-texto.test}
+      POSTFIX_MYORIGIN: ${POSTFIX_MYORIGIN:-texto.test}
+      POSTFIX_SMTP_HELO_NAME: ${POSTFIX_SMTP_HELO_NAME:-mail.texto.test}
+      POSTFIX_MYNETWORKS: ${POSTFIX_MYNETWORKS:-127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16}
+      POSTFIX_SMTPD_TLS_SECURITY_LEVEL: ${POSTFIX_SMTPD_TLS_SECURITY_LEVEL:-none}
+      POSTFIX_SMTP_TLS_SECURITY_LEVEL: ${POSTFIX_SMTP_TLS_SECURITY_LEVEL:-none}
+      POSTFIX_ENABLE_PUBLIC_DELIVERY: "no"
+      # Confirm token is intentionally omitted so public MX cannot be enabled from local compose.
+      POSTFIX_BOUNCE_DOMAIN: ${POSTFIX_BOUNCE_DOMAIN:-bounce.texto.test}
     volumes:
       - postfix_mail:/var/mail
     healthcheck:
-      test: ["CMD-SHELL", "postfix status"]
+      test: ["CMD", "/smtp-ping.sh"]
       interval: 10s
       timeout: 5s
       retries: 10

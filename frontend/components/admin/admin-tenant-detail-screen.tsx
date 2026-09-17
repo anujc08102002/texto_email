@@ -100,7 +100,7 @@ export function AdminTenantDetailScreen({ tenant }: { tenant: AdminTenant }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Tenant control"
         title={tenant.organization}

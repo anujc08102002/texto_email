@@ -56,7 +56,7 @@ export function TemplatesManager() {
   }, [templates, query]);
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Workspace"
         title="Templates"

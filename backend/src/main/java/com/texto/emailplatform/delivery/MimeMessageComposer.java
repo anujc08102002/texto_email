@@ -1,5 +1,7 @@
 package com.texto.emailplatform.delivery;
 
+import com.texto.emailplatform.bounce.BounceAddress;
+import com.texto.emailplatform.bounce.BounceCorrelationToken;
 import com.texto.emailplatform.delivery.mta.MtaSubmitRequest;
 import com.texto.emailplatform.delivery.mta.SmtpEnvelope;
 import java.nio.charset.StandardCharsets;
@@ -16,9 +18,17 @@ final class MimeMessageComposer {
     private static final String CRLF = "\r\n";
 
     private final DkimSigningService dkimSigningService;
+    private final String bounceDomain;
+    private final String messageIdDomain;
 
-    MimeMessageComposer(DkimSigningService dkimSigningService) {
+    MimeMessageComposer(DkimSigningService dkimSigningService, String bounceDomain) {
+        this(dkimSigningService, bounceDomain, "texto.local");
+    }
+
+    MimeMessageComposer(DkimSigningService dkimSigningService, String bounceDomain, String messageIdDomain) {
         this.dkimSigningService = dkimSigningService;
+        this.bounceDomain = bounceDomain;
+        this.messageIdDomain = messageIdDomain == null || messageIdDomain.isBlank() ? "texto.local" : messageIdDomain.trim();
     }
 
     Composed compose(DeliveryEngine.DeliveryRequest request) {
@@ -35,7 +45,7 @@ final class MimeMessageComposer {
             contentType = "text/plain; charset=UTF-8";
         }
 
-        String messageId = "<" + UUID.randomUUID() + "@texto.local>";
+        String messageId = "<" + UUID.randomUUID() + "@" + messageIdDomain + ">";
         LinkedHashMap<String, String> signedHeaders = new LinkedHashMap<>();
         signedHeaders.put("from", headerValue(request.from()));
         signedHeaders.put("to", headerValue(String.join(", ", nullToEmpty(request.to()))));
@@ -52,14 +62,15 @@ final class MimeMessageComposer {
         signedHeaders.put("content-type", contentType);
 
         String body = renderBody(request, boundary, hasHtml, hasText);
-        String dkim = dkimSigningService.sign(request.tenantId(), request.from(), signedHeaders, body).orElse(null);
+        String dkim = dkimSigningService.sign(request.tenantId(), request.from(), signedHeaders, body);
+        if (dkim == null || !dkim.contains("DKIM-Signature:")) {
+            throw new DkimSigningException("Unable to DKIM-sign the message");
+        }
 
         StringBuilder rfc822 = new StringBuilder();
-        if (dkim != null) {
-            rfc822.append(dkim);
-            if (!dkim.endsWith(CRLF)) {
-                rfc822.append(CRLF);
-            }
+        rfc822.append(dkim);
+        if (!dkim.endsWith(CRLF)) {
+            rfc822.append(CRLF);
         }
         appendHeader(rfc822, "From", signedHeaders.get("from"));
         appendHeader(rfc822, "To", signedHeaders.get("to"));
@@ -80,7 +91,13 @@ final class MimeMessageComposer {
         rfc822.append(CRLF);
         rfc822.append(body.replace("\n", CRLF));
 
-        SmtpEnvelope envelope = new SmtpEnvelope(request.from(), recipients);
+        String mailFrom = BounceAddress.mailFromOrFallback(
+                request.bounceCorrelationToken(),
+                bounceDomain,
+                request.from()
+        );
+        String envelopeId = BounceCorrelationToken.normalize(request.bounceCorrelationToken());
+        SmtpEnvelope envelope = new SmtpEnvelope(mailFrom, recipients, envelopeId);
         return new Composed(new MtaSubmitRequest(envelope, rfc822.toString().getBytes(StandardCharsets.UTF_8)), messageId);
     }
 

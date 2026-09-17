@@ -22,17 +22,19 @@ export function WorkspaceSwitcher({ collapsed = false }: { collapsed?: boolean }
       type="button"
       aria-label="Workspace selector"
       className={cn(
-        "flex w-full items-center gap-2 rounded-xl border border-border/70 bg-muted/40 px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40",
-        collapsed && "justify-center px-0",
+        "flex w-full items-center gap-2 rounded-lg border border-sidebar-border bg-white/[0.04] px-2 py-1.5 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring/50",
+        collapsed && "justify-center border-transparent px-0",
       )}
     >
       <Avatar className="size-6">
-        <AvatarFallback className="text-[10px]">{initials(name)}</AvatarFallback>
+        <AvatarFallback className="bg-sidebar-accent text-[10px] text-sidebar-accent-foreground">
+          {initials(name)}
+        </AvatarFallback>
       </Avatar>
       {!collapsed ? (
         <>
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">{name}</span>
-          <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-sidebar-foreground">{name}</span>
+          <ChevronsUpDown className="size-3.5 shrink-0 text-sidebar-muted" />
         </>
       ) : (
         <span className="sr-only">{name}</span>

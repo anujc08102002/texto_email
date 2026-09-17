@@ -6,6 +6,7 @@ import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -24,8 +25,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiResponse<Void>> handleApiException(ApiException exception) {
-        return ResponseEntity.status(exception.getStatus())
-                .body(ApiResponse.failure(exception.getCode(), exception.getMessage()));
+        var body = ApiResponse.failure(exception.getCode(), exception.getMessage());
+        var response = ResponseEntity.status(exception.getStatus());
+        if (exception.getRetryAfterSeconds() != null && exception.getRetryAfterSeconds() > 0) {
+            response.header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()));
+        }
+        return response.body(body);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

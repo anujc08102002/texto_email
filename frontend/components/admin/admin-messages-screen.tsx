@@ -38,7 +38,7 @@ export function AdminMessagesScreen() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-4">
       <PageHeader
         eyebrow="Platform admin"
         title="Tenant messages"
@@ -46,7 +46,7 @@ export function AdminMessagesScreen() {
       />
       <AdminPreviewBanner />
 
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="grid flex-1 gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <SectionPanel title="Templates" description="Reusable operator notices">
           <div className="space-y-2">
             {ADMIN_MESSAGE_TEMPLATES.map((item) => (
