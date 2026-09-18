@@ -75,6 +75,16 @@ class DomainDnsAuthenticationTest {
     }
 
     @Test
+    void reconstructsMixedQuotedAndUnquotedTxtChunks() {
+        String raw =
+            "\"v=DKIM1; k=rsa; p=ABCDEF\" "
+                    + "GHIJKLMN";
+
+        assertThat(DnsTxtRecordParser.reconstruct(raw))
+            .isEqualTo("v=DKIM1; k=rsa; p=ABCDEFGHIJKLMN");
+    }
+
+    @Test
     void dnsErrorsAreClassifiedWithoutResolverDetails() {
         assertThat(DnsErrorClassifier.classify(new NameNotFoundException("x"))).isEqualTo(DnsLookupOutcome.NXDOMAIN);
         assertThat(DnsErrorClassifier.classify(new TimeLimitExceededException("x"))).isEqualTo(DnsLookupOutcome.TIMEOUT);
