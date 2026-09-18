@@ -12,6 +12,7 @@ public class EmailPlatformProperties {
     private final Mailpit mailpit = new Mailpit();
     private final Mta mta = new Mta();
     private final Ses ses = new Ses();
+    private final SesFeedback sesFeedback = new SesFeedback();
     private final Domains domains = new Domains();
     private final Webhooks webhooks = new Webhooks();
     private final Email email = new Email();
@@ -37,6 +38,10 @@ public class EmailPlatformProperties {
 
     public Ses getSes() {
         return ses;
+    }
+
+    public SesFeedback getSesFeedback() {
+        return sesFeedback;
     }
 
     public Domains getDomains() {
@@ -669,6 +674,64 @@ public class EmailPlatformProperties {
 
         public void setConfigurationSetName(String configurationSetName) {
             this.configurationSetName = configurationSetName;
+        }
+    }
+
+    public static class SesFeedback {
+
+        private boolean enabled = false;
+        private String queueUrl = "";
+        private int maxMessages = 10;
+        private int waitSeconds = 20;
+        private int visibilityTimeoutSeconds = 120;
+        private long pollMs = 1000;
+    
+        public boolean isEnabled() {
+            return enabled;
+        }
+    
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+    
+        public String getQueueUrl() {
+            return queueUrl;
+        }
+    
+        public void setQueueUrl(String queueUrl) {
+            this.queueUrl = queueUrl;
+        }
+    
+        public int getMaxMessages() {
+            return maxMessages;
+        }
+    
+        public void setMaxMessages(int maxMessages) {
+            this.maxMessages = maxMessages;
+        }
+    
+        public int getWaitSeconds() {
+            return waitSeconds;
+        }
+    
+        public void setWaitSeconds(int waitSeconds) {
+            this.waitSeconds = waitSeconds;
+        }
+    
+        public int getVisibilityTimeoutSeconds() {
+            return visibilityTimeoutSeconds;
+        }
+    
+        public void setVisibilityTimeoutSeconds(int visibilityTimeoutSeconds) {
+            this.visibilityTimeoutSeconds = visibilityTimeoutSeconds;
+        }
+    
+        public long getPollMs() {
+            return pollMs;
+        }
+    
+        public void setPollMs(long pollMs) {
+            this.pollMs = pollMs;
         }
     }
 
