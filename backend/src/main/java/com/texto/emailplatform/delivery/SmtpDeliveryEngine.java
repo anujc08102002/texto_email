@@ -2,6 +2,7 @@ package com.texto.emailplatform.delivery;
 
 import com.texto.emailplatform.common.config.EmailPlatformProperties;
 import com.texto.emailplatform.delivery.mta.MtaClient;
+import com.texto.emailplatform.delivery.mta.MtaClients;
 import com.texto.emailplatform.delivery.mta.MtaOutcome;
 import com.texto.emailplatform.delivery.mta.MtaPropertiesValidator;
 import com.texto.emailplatform.delivery.mta.MtaResult;
@@ -11,7 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * Delivery engine: compose RFC 822, DKIM-sign, then hand off to the configured {@link MtaClient}.
+ * Delivery engine: compose RFC 822, optionally DKIM-sign, then hand off to the configured {@link MtaClient}.
  * Tenant authorization, suppression, quotas, and retry remain outside this class.
  *
  * <p>{@code SUCCESS} means the MTA accepted the message (RFC 5321 250 after DATA), not that the
@@ -43,11 +44,16 @@ public class SmtpDeliveryEngine implements DeliveryEngine {
         this.composer = new MimeMessageComposer(
                 dkimSigningService,
                 properties.getBounce().getDomain(),
-                MtaPropertiesValidator.smtpIdentity(properties)
+                MtaPropertiesValidator.smtpIdentity(properties),
+                applicationDkimEnabled(properties)
         );
         this.mtaClient = mtaClient;
         this.properties = properties;
         this.publicDeliveryGuard = publicDeliveryGuard;
+    }
+
+    private static boolean applicationDkimEnabled(EmailPlatformProperties properties) {
+        return !MtaClients.SES.equals(MtaClients.normalize(properties.getMta().getImplementation()));
     }
 
     @Override

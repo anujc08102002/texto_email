@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Builds RFC 822 bytes (including DKIM-Signature) before MTA handoff.
+ * Builds RFC 822 bytes before MTA handoff.
  */
 final class MimeMessageComposer {
 
@@ -20,15 +20,26 @@ final class MimeMessageComposer {
     private final DkimSigningService dkimSigningService;
     private final String bounceDomain;
     private final String messageIdDomain;
+    private final boolean applicationDkimEnabled;
 
     MimeMessageComposer(DkimSigningService dkimSigningService, String bounceDomain) {
         this(dkimSigningService, bounceDomain, "texto.local");
     }
 
     MimeMessageComposer(DkimSigningService dkimSigningService, String bounceDomain, String messageIdDomain) {
+        this(dkimSigningService, bounceDomain, messageIdDomain, true);
+    }
+
+    MimeMessageComposer(
+            DkimSigningService dkimSigningService,
+            String bounceDomain,
+            String messageIdDomain,
+            boolean applicationDkimEnabled
+    ) {
         this.dkimSigningService = dkimSigningService;
         this.bounceDomain = bounceDomain;
         this.messageIdDomain = messageIdDomain == null || messageIdDomain.isBlank() ? "texto.local" : messageIdDomain.trim();
+        this.applicationDkimEnabled = applicationDkimEnabled;
     }
 
     Composed compose(DeliveryEngine.DeliveryRequest request) {
@@ -62,15 +73,17 @@ final class MimeMessageComposer {
         signedHeaders.put("content-type", contentType);
 
         String body = renderBody(request, boundary, hasHtml, hasText);
-        String dkim = dkimSigningService.sign(request.tenantId(), request.from(), signedHeaders, body);
-        if (dkim == null || !dkim.contains("DKIM-Signature:")) {
-            throw new DkimSigningException("Unable to DKIM-sign the message");
-        }
 
         StringBuilder rfc822 = new StringBuilder();
-        rfc822.append(dkim);
-        if (!dkim.endsWith(CRLF)) {
-            rfc822.append(CRLF);
+        if (applicationDkimEnabled) {
+            String dkim = dkimSigningService.sign(request.tenantId(), request.from(), signedHeaders, body);
+            if (dkim == null || !dkim.contains("DKIM-Signature:")) {
+                throw new DkimSigningException("Unable to DKIM-sign the message");
+            }
+            rfc822.append(dkim);
+            if (!dkim.endsWith(CRLF)) {
+                rfc822.append(CRLF);
+            }
         }
         appendHeader(rfc822, "From", signedHeaders.get("from"));
         appendHeader(rfc822, "To", signedHeaders.get("to"));

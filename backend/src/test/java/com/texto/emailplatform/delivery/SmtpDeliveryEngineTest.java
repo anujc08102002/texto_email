@@ -44,7 +44,9 @@ class SmtpDeliveryEngineTest {
         };
 
         String token = "0123456789abcdef0123456789abcdef";
-        SmtpDeliveryEngine engine = new SmtpDeliveryEngine(signingService, mtaClient, new EmailPlatformProperties());
+        EmailPlatformProperties properties = new EmailPlatformProperties();
+        properties.getMta().setImplementation("postfix");
+        SmtpDeliveryEngine engine = new SmtpDeliveryEngine(signingService, mtaClient, properties);
         DeliveryEngine.DeliveryResult result = engine.deliver(new DeliveryEngine.DeliveryRequest(
                 UUID.randomUUID(),
                 "noreply@acme.texto.test",
@@ -71,6 +73,44 @@ class SmtpDeliveryEngineTest {
         assertThat(rfc822).doesNotContain("bounce+" + token);
         assertThat(DkimSigner.hasDkimSignature(rfc822)).isTrue();
         assertThat(DkimSigner.verify(keyPair.getPublic(), rfc822)).isTrue();
+    }
+
+    @Test
+    void sesImplementationComposesRfc822WithoutApplicationDkimSignature() {
+        DkimSigningService signingService = Mockito.mock(DkimSigningService.class);
+        when(signingService.sign(any(), any(), any(), any()))
+                .thenThrow(new DkimSigningException("DKIM signing material is unavailable"));
+
+        AtomicReference<MtaSubmitRequest> captured = new AtomicReference<>();
+        MtaClient mtaClient = request -> {
+            captured.set(request);
+            return MtaResult.success("250", "250 SES accepted message SESID", "SESID");
+        };
+
+        EmailPlatformProperties properties = new EmailPlatformProperties();
+        properties.getMta().setImplementation("ses");
+        properties.getSes().setEnabled(true);
+        properties.getSes().setRegion("ap-south-1");
+        SmtpDeliveryEngine engine = new SmtpDeliveryEngine(signingService, mtaClient, properties);
+
+        DeliveryEngine.DeliveryResult result = engine.deliver(new DeliveryEngine.DeliveryRequest(
+                UUID.randomUUID(),
+                "noreply@texto-qa.in",
+                List.of("alice@example.com"),
+                List.of(),
+                List.of(),
+                null,
+                "Hello",
+                "hello world",
+                null
+        ));
+
+        assertThat(result.outcome()).isEqualTo(DeliveryEngine.Outcome.SUCCESS);
+        assertThat(result.rfc822MessageId()).startsWith("<").endsWith("@texto.local>");
+        String rfc822 = new String(captured.get().rfc822(), StandardCharsets.UTF_8);
+        assertThat(rfc822).contains("From: noreply@texto-qa.in");
+        assertThat(rfc822).doesNotContain("DKIM-Signature:");
+        Mockito.verify(signingService, Mockito.never()).sign(any(), any(), any(), any());
     }
 
     @Test
@@ -113,7 +153,9 @@ class SmtpDeliveryEngineTest {
         DkimSigningService signingService = Mockito.mock(DkimSigningService.class);
         when(signingService.sign(any(), any(), any(), any())).thenThrow(new DkimSigningException("Unable to DKIM-sign the message"));
 
-        SmtpDeliveryEngine engine = new SmtpDeliveryEngine(signingService, mtaClient, new EmailPlatformProperties());
+        EmailPlatformProperties properties = new EmailPlatformProperties();
+        properties.getMta().setImplementation("postfix");
+        SmtpDeliveryEngine engine = new SmtpDeliveryEngine(signingService, mtaClient, properties);
         DeliveryEngine.DeliveryResult result = engine.deliver(new DeliveryEngine.DeliveryRequest(
                 UUID.randomUUID(),
                 "noreply@acme.texto.test",
