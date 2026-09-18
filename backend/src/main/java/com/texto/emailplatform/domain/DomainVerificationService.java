@@ -285,42 +285,95 @@ public class DomainVerificationService {
             return "fingerprint-error";
         }
     }
+     private static String normalizeKey(String key) {
+        return key == null ? "" : key.replaceAll("\\s+", "");
+    }
 
-    private boolean verifyDkim(DomainEntity domain, DomainVerificationRecordEntity record, DnsTxtQueryResult lookup) {
+    private boolean verifyDkim(
+            DomainEntity domain,
+            DomainVerificationRecordEntity record,
+           
+            DnsTxtQueryResult lookup) {
+    
         DkimKeyEntity active = dkimKeyService.ensureActiveKey(domain, configuredSelector());
-        log.info("DKIM DEBUG START: selector={}",configuredSelector());
-        log.info("DKIM DEBUG: active.getPublicKey()={}", active.getPublicKey());
-        log.info("DKIM DEBUG: active.getPublicKey().length={}", active.getPublicKey() != null ? active.getPublicKey().length() : "null");
-        log.info("DKIM DEBUG: record.getPublicKey()={}", record.getPublicKey());
-        log.info("DKIM DEBUG: record.getPublicKey().length={}", record.getPublicKey() != null ? record.getPublicKey().length() : "null");
-        log.info("DKIM DEBUG: lookup.txtRecords().size()={}", lookup.txtRecords().size());
-        for (int i = 0; i < lookup.txtRecords().size(); i++) {
-            log.info("DKIM DEBUG: lookup.txtRecords()[{}]={}", i, lookup.txtRecords().get(i));
-        }
-        
-        if (active.getPublicKey() == null || !active.getPublicKey().replaceAll("\\s+", "")
-                .equals(record.getPublicKey() == null ? "" : record.getPublicKey().replaceAll("\\s+", ""))) {
-            record.markFailed("DKIM_KEY_MISMATCH");
+    
+        String activePublicKey = normalizeKey(active.getPublicKey());
+        String recordPublicKey = normalizeKey(record.getPublicKey());
+    
+        // The verification record must correspond to the currently active DKIM key.
+        if (activePublicKey.isEmpty() || !activePublicKey.equals(recordPublicKey)) {
+            record.markFailed("DKIM_ACTIVE_KEY_MISMATCH");
+    
+            log.warn(
+                    "DKIM active-key mismatch: domain={}, selector={}, activeFingerprint={}, recordFingerprint={}",
+                    domain.getDomain(),
+                    active.getSelector(),
+                    fingerprint(active.getPublicKey()),
+                    fingerprint(record.getPublicKey())
+            );
+    
             return false;
         }
-        DkimDnsRecord.MatchResult result = DkimDnsRecord.match(lookup.txtRecords(), active.getPublicKey());
-        log.info(
-            "DKIM DNS verification: domain={}, selector={}, dnsRecords={}, activeKeyFingerprint={}",
-            domain.getDomain(),
-            active.getSelector(),
-            lookup.txtRecords(),
-            fingerprint(active.getPublicKey())
-        );
+    
+        DkimDnsRecord.MatchResult result =
+                DkimDnsRecord.match(lookup.txtRecords(), active.getPublicKey());
+    
         if (result.isMatched()) {
             record.markVerified();
+    
+            log.info(
+                    "DKIM DNS verification successful: domain={}, selector={}, fingerprint={}",
+                    domain.getDomain(),
+                    active.getSelector(),
+                    fingerprint(active.getPublicKey())
+            );
+    
             return true;
         }
+    
         switch (result.status()) {
-            case MISSING -> record.markMissing("DKIM_MISSING");
-            case MULTIPLE -> record.markFailed("DKIM_MULTIPLE");
-            case REVOKED -> record.markFailed("DKIM_REVOKED");
-            default -> record.markFailed("DKIM_KEY_MISMATCH");
+            case MISSING -> {
+                record.markMissing("DKIM_MISSING");
+    
+                log.warn(
+                        "DKIM DNS record missing: domain={}, selector={}",
+                        domain.getDomain(),
+                        active.getSelector()
+                );
+            }
+    
+            case MULTIPLE -> {
+                record.markFailed("DKIM_MULTIPLE");
+    
+                log.warn(
+                        "Multiple DKIM DNS records found: domain={}, selector={}",
+                        domain.getDomain(),
+                        active.getSelector()
+                );
+            }
+    
+            case REVOKED -> {
+                record.markFailed("DKIM_REVOKED");
+    
+                log.warn(
+                        "DKIM record is revoked: domain={}, selector={}",
+                        domain.getDomain(),
+                        active.getSelector()
+                );
+            }
+    
+            default -> {
+                record.markFailed("DKIM_DNS_MISMATCH");
+    
+                log.warn(
+                        "DKIM DNS public key mismatch: domain={}, selector={}, expectedFingerprint={}",
+                        domain.getDomain(),
+                        active.getSelector(),
+                        fingerprint(active.getPublicKey())
+                );
+            }
         }
+    
         return false;
     }
 
