@@ -20,6 +20,13 @@ management:
       show-components: when-authorized
 
 email-platform:
+  ses-feedback:
+    enabled: ${SES_FEEDBACK_ENABLED:false}
+    queue-url: ${SES_FEEDBACK_QUEUE_URL:}
+    max-messages: ${SES_FEEDBACK_MAX_MESSAGES:10}
+    wait-seconds: ${SES_FEEDBACK_WAIT_SECONDS:20}
+    visibility-timeout-seconds: ${SES_FEEDBACK_VISIBILITY_TIMEOUT_SECONDS:120}
+    poll-ms: ${SES_FEEDBACK_POLL_MS:1000}
   security:
     api-docs-public: false
   cors:
