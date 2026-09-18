@@ -10,17 +10,8 @@ import java.util.regex.Pattern;
  * {@code <character-string>} values. Multiple character-strings belonging
  * to the same TXT resource record are concatenated without inserting spaces.
  *
- * <p>DNS resolver implementations may expose the same TXT RDATA using
- * slightly different presentation formats, for example:
- *
- * <pre>
- * "chunk-one" "chunk-two"
- * "chunk-one" chunk-two
- * "single-chunk"
- * </pre>
- *
- * <p>This class reconstructs the logical TXT value while preserving
- * whitespace contained inside quoted character-strings.
+ * <p>Resolver implementations may expose TXT RDATA in presentation forms
+ * such as {@code "chunk-one" "chunk-two"} or {@code "chunk-one" chunk-two}.
  */
 public final class DnsTxtRecordParser {
 
@@ -34,18 +25,8 @@ public final class DnsTxtRecordParser {
     /**
      * Reconstructs one TXT resource record from a resolver attribute value.
      *
-     * <p>Examples:
-     *
-     * <pre>
-     * "abc" "def"     -> abcdef
-     * "abc" def       -> abcdef
-     * "abc"           -> abc
-     * abc             -> abc
-     * "hello world"   -> hello world
-     * </pre>
-     *
      * @param raw resolver-provided TXT value
-     * @return reconstructed TXT value, never {@code null}
+     * @return reconstructed logical TXT value, never {@code null}
      */
     public static String reconstruct(Object raw) {
         if (raw == null) {
@@ -58,64 +39,60 @@ public final class DnsTxtRecordParser {
             return "";
         }
 
+        Matcher matcher = QUOTED_CHUNKS.matcher(value);
+
+        StringBuilder result = new StringBuilder();
+        int quotedChunks = 0;
+        int lastEnd = 0;
+
+        while (matcher.find()) {
+            quotedChunks++;
+
+            result.append(matcher.group(1));
+            lastEnd = matcher.end();
+        }
+
         /*
-         * First handle the normal DNS presentation form:
+         * Standard presentation form:
          *
          *     "chunk-one" "chunk-two"
          *
-         * Multiple quoted character-strings are definitely separate
-         * chunks belonging to the same TXT resource record.
+         * Concatenate all quoted chunks without spaces.
          */
-        Matcher matcher = QUOTED_CHUNKS.matcher(value);
-
-        StringBuilder quotedResult = new StringBuilder();
-        int quotedChunkCount = 0;
-        int lastMatchEnd = 0;
-
-        while (matcher.find()) {
-            quotedChunkCount++;
-            quotedResult.append(matcher.group(1));
-            lastMatchEnd = matcher.end();
+        if (quotedChunks >= 2) {
+            return result.toString();
         }
 
         /*
-         * Preserve the existing behavior for multiple quoted chunks.
-         */
-        if (quotedChunkCount >= 2 && onlyPresentationWhitespaceOutsideQuotes(value)) {
-            return quotedResult.toString();
-        }
-
-        /*
-         * Handle resolver output observed in production:
+         * Production JNDI form observed with this application:
          *
          *     "chunk-one" chunk-two
          *
-         * The unquoted portion is a continuation of the same TXT RDATA,
-         * not a separate TXT resource record.
+         * The text following the quoted chunk is a continuation of the
+         * same TXT resource record.
          */
-        if (quotedChunkCount == 1) {
-            String prefix = matcherStartContent(value, matcherStart(value));
-            String suffix = value.substring(lastMatchEnd).trim();
+        if (quotedChunks == 1
+                && value.startsWith("\"")
+                && lastEnd < value.length()) {
 
-            if (isSingleLeadingQuotedChunk(value, matcherStart(value))
-                    && !suffix.isEmpty()) {
+            String remainder = value.substring(lastEnd).trim();
 
-                return prefix + suffix;
-            }
-
-            /*
-             * A single fully quoted TXT value:
-             *
-             *     "hello world"
-             */
-            if (looksFullyQuoted(value)) {
-                return quotedResult.toString();
+            if (!remainder.isEmpty()) {
+                return result.append(remainder).toString();
             }
         }
 
         /*
-         * Preserve the original fallback behavior for plain TXT values
-         * and unexpected resolver representations.
+         * Single quoted TXT value:
+         *
+         *     "plain text"
+         */
+        if (quotedChunks == 1 && looksFullyQuoted(value)) {
+            return result.toString();
+        }
+
+        /*
+         * Plain/unexpected TXT representation.
          */
         return stripOuterQuotes(value);
     }
@@ -132,62 +109,6 @@ public final class DnsTxtRecordParser {
         return reconstruct(value)
                 .replaceAll("\\s+", " ")
                 .trim();
-    }
-
-    /**
-     * Returns the start index of the first quoted chunk.
-     */
-    private static int matcherStart(String value) {
-        Matcher matcher = QUOTED_CHUNKS.matcher(value);
-        return matcher.find() ? matcher.start() : -1;
-    }
-
-    /**
-     * Returns the content before the quoted chunk.
-     */
-    private static String matcherStartContent(String value, int start) {
-        if (start <= 0) {
-            return "";
-        }
-
-        return value.substring(0, start).trim();
-    }
-
-    /**
-     * Determines whether the supplied value consists of one leading quoted
-     * chunk followed by an unquoted continuation.
-     */
-    private static boolean isSingleLeadingQuotedChunk(String value, int start) {
-        if (start != 0) {
-            return false;
-        }
-
-        int firstQuoteEnd = value.indexOf('"', 1);
-
-        return firstQuoteEnd > 0
-                && firstQuoteEnd < value.length() - 1;
-    }
-
-    /**
-     * Returns true when whitespace outside quoted chunks is only presentation
-     * whitespace.
-     */
-    private static boolean onlyPresentationWhitespaceOutsideQuotes(String value) {
-        Matcher matcher = QUOTED_CHUNKS.matcher(value);
-
-        int previousEnd = 0;
-
-        while (matcher.find()) {
-            String between = value.substring(previousEnd, matcher.start());
-
-            if (!between.trim().isEmpty()) {
-                return false;
-            }
-
-            previousEnd = matcher.end();
-        }
-
-        return value.substring(previousEnd).trim().isEmpty();
     }
 
     private static boolean looksFullyQuoted(String value) {
