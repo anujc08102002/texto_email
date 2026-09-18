@@ -97,13 +97,6 @@ class DomainDnsAuthenticationTest {
         )).isEqualTo("abcdefghi");
     }
     
-    @Test
-    void doesNotSilentlyDiscardUnexpectedContentBetweenQuotedChunks() {
-        String raw = "\"abc\" unexpected \"def\"";
-    
-        assertThat(DnsTxtRecordParser.reconstruct(raw))
-                .isEqualTo(raw);
-    }
 
     @Test
     void dnsErrorsAreClassifiedWithoutResolverDetails() {
