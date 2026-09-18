@@ -4,14 +4,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Reconstructs TXT RDATA.
+ * Reconstructs TXT RDATA returned by DNS resolver implementations.
  *
- * <p>RFC 1035 §3.3.14: TXT-DATA consists of one or more
+ * <p>RFC 1035 §3.3.14 defines TXT-DATA as one or more
  * {@code <character-string>} values. Multiple character-strings belonging
  * to the same TXT resource record are concatenated without inserting spaces.
  *
- * <p>Resolver implementations may expose TXT RDATA in presentation forms
- * such as {@code "chunk-one" "chunk-two"} or {@code "chunk-one" chunk-two}.
+ * <p>Resolver implementations may expose TXT RDATA using presentation forms
+ * such as:
+ *
+ * <pre>
+ * "chunk-one" "chunk-two"
+ * "chunk-one" chunk-two
+ * "single-chunk"
+ * </pre>
+ *
+ * <p>The parser reconstructs the logical TXT value while preserving
+ * whitespace contained inside quoted character-strings.
  */
 public final class DnsTxtRecordParser {
 
@@ -24,6 +33,10 @@ public final class DnsTxtRecordParser {
 
     /**
      * Reconstructs one TXT resource record from a resolver attribute value.
+     *
+     * <p>Multiple quoted character-strings are concatenated without spaces.
+     * If a resolver returns a quoted first chunk followed by an unquoted
+     * continuation, the continuation is also concatenated.
      *
      * @param raw resolver-provided TXT value
      * @return reconstructed logical TXT value, never {@code null}
@@ -48,58 +61,56 @@ public final class DnsTxtRecordParser {
         while (matcher.find()) {
             quotedChunks++;
 
+            /*
+             * Anything between quoted chunks must be presentation
+             * whitespace. Unexpected non-whitespace content is not a
+             * valid continuation of the TXT RDATA.
+             */
+            if (!value.substring(lastEnd, matcher.start()).trim().isEmpty()) {
+                return stripOuterQuotes(value);
+            }
+
             result.append(matcher.group(1));
             lastEnd = matcher.end();
         }
 
         /*
-         * Standard presentation form:
+         * No quoted chunks were found.
          *
-         *     "chunk-one" "chunk-two"
-         *
-         * Concatenate all quoted chunks without spaces.
+         * Preserve the original behavior for plain resolver values.
          */
-        if (quotedChunks >= 2) {
-            return result.toString();
+        if (quotedChunks == 0) {
+            return stripOuterQuotes(value);
         }
 
         /*
-         * Production JNDI form observed with this application:
+         * Handle the production JNDI representation:
          *
          *     "chunk-one" chunk-two
          *
-         * The text following the quoted chunk is a continuation of the
-         * same TXT resource record.
+         * The unquoted suffix is a continuation of the same TXT RR.
          */
-        if (quotedChunks == 1
-                && value.startsWith("\"")
-                && lastEnd < value.length()) {
+        String remainder = value.substring(lastEnd).trim();
 
-            String remainder = value.substring(lastEnd).trim();
-
-            if (!remainder.isEmpty()) {
-                return result.append(remainder).toString();
-            }
+        if (!remainder.isEmpty()) {
+            /*
+             * A resolver representation containing an unquoted continuation
+             * after the final quoted chunk is accepted as one TXT RDATA
+             * value. This is the representation observed from JNDI in
+             * production for the DKIM record.
+             */
+            result.append(remainder);
         }
 
-        /*
-         * Single quoted TXT value:
-         *
-         *     "plain text"
-         */
-        if (quotedChunks == 1 && looksFullyQuoted(value)) {
-            return result.toString();
-        }
-
-        /*
-         * Plain/unexpected TXT representation.
-         */
-        return stripOuterQuotes(value);
+        return result.toString();
     }
 
     /**
-     * Normalizes a TXT value for callers that need whitespace normalization
-     * after TXT reconstruction.
+     * Normalizes a reconstructed TXT value for callers that need whitespace
+     * normalization.
+     *
+     * @param value TXT value
+     * @return normalized TXT value, never {@code null}
      */
     public static String stripQuotesAndWhitespace(String value) {
         if (value == null) {
@@ -111,22 +122,14 @@ public final class DnsTxtRecordParser {
                 .trim();
     }
 
-    private static boolean looksFullyQuoted(String value) {
-        return value.startsWith("\"")
-                && value.endsWith("\"")
-                && value.indexOf('"', 1) == value.length() - 1;
-    }
-
     private static String stripOuterQuotes(String value) {
-        String current = value;
+        if (value.length() >= 2
+                && value.startsWith("\"")
+                && value.endsWith("\"")) {
 
-        if (current.length() >= 2
-                && current.startsWith("\"")
-                && current.endsWith("\"")) {
-
-            current = current.substring(1, current.length() - 1);
+            return value.substring(1, value.length() - 1);
         }
 
-        return current;
+        return value;
     }
 }
