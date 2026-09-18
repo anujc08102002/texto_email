@@ -421,7 +421,8 @@ public class DomainVerificationService {
             case "DKIM_MISSING" -> "DKIM TXT was not found.";
             case "DKIM_MULTIPLE" -> "Multiple DKIM TXT records were found for this selector.";
             case "DKIM_REVOKED" -> "The DKIM public key has been revoked.";
-            case "DKIM_KEY_MISMATCH" -> "The published DKIM public key does not match the active signing key.";
+            case "DKIM_ACTIVE_KEY_MISMATCH" -> "The DKIM verification record does not match the active signing key.";
+            case "DKIM_DNS_MISMATCH" -> "The published DKIM public key does not match the active signing key.";
             case "DMARC_MISSING" -> "DMARC TXT was not found.";
             case "DMARC_MULTIPLE" -> "Multiple DMARC records were found.";
             case "DMARC_MALFORMED" -> "The DMARC record is not valid.";
