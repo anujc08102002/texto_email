@@ -85,6 +85,27 @@ class DomainDnsAuthenticationTest {
     }
 
     @Test
+    void preservesWhitespaceInsideQuotedTxtChunk() {
+        assertThat(DnsTxtRecordParser.reconstruct("\"hello world\""))
+                .isEqualTo("hello world");
+    }
+    
+    @Test
+    void reconstructsMultipleQuotedChunksWithoutAddingWhitespace() {
+        assertThat(DnsTxtRecordParser.reconstruct(
+                "\"abc\" \"def\" \"ghi\""
+        )).isEqualTo("abcdefghi");
+    }
+    
+    @Test
+    void doesNotSilentlyDiscardUnexpectedContentBetweenQuotedChunks() {
+        String raw = "\"abc\" unexpected \"def\"";
+    
+        assertThat(DnsTxtRecordParser.reconstruct(raw))
+                .isEqualTo(raw);
+    }
+
+    @Test
     void dnsErrorsAreClassifiedWithoutResolverDetails() {
         assertThat(DnsErrorClassifier.classify(new NameNotFoundException("x"))).isEqualTo(DnsLookupOutcome.NXDOMAIN);
         assertThat(DnsErrorClassifier.classify(new TimeLimitExceededException("x"))).isEqualTo(DnsLookupOutcome.TIMEOUT);
