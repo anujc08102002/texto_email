@@ -16,6 +16,10 @@ import com.texto.emailplatform.domain.dns.SpfRecord;
 import com.texto.emailplatform.domain.domain.DomainEntity;
 import com.texto.emailplatform.domain.domain.DomainVerificationRecordEntity;
 import com.texto.emailplatform.domain.domain.DomainVerificationRecordRepository;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -23,6 +27,11 @@ import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 /**
  * Generates and checks DNS records for domain ownership and email authentication.
@@ -35,6 +44,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DomainVerificationService {
 
+    private static final Logger log =
+        LoggerFactory.getLogger(DomainVerificationService.class);
     private final DomainVerificationRecordRepository verificationRecordRepository;
     private final DnsLookupService dnsLookupService;
     private final EmailPlatformProperties properties;
@@ -257,14 +268,49 @@ public class DomainVerificationService {
         return false;
     }
 
+    private static String fingerprint(String value) {
+        if (value == null) {
+            return "null";
+        }
+
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(
+                    value.replaceAll("\\s+", "")
+                            .getBytes(StandardCharsets.UTF_8)
+            );
+
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            return "fingerprint-error";
+        }
+    }
+
     private boolean verifyDkim(DomainEntity domain, DomainVerificationRecordEntity record, DnsTxtQueryResult lookup) {
         DkimKeyEntity active = dkimKeyService.ensureActiveKey(domain, configuredSelector());
+        log.info("DKIM DEBUG START: selector={}",configuredSelector());
+        log.info("DKIM DEBUG: active.getPublicKey()={}", active.getPublicKey());
+        log.info("DKIM DEBUG: active.getPublicKey().length={}", active.getPublicKey() != null ? active.getPublicKey().length() : "null");
+        log.info("DKIM DEBUG: record.getPublicKey()={}", record.getPublicKey());
+        log.info("DKIM DEBUG: record.getPublicKey().length={}", record.getPublicKey() != null ? record.getPublicKey().length() : "null");
+        log.info("DKIM DEBUG: lookup.txtRecords().size()={}", lookup.txtRecords().size());
+        for (int i = 0; i < lookup.txtRecords().size(); i++) {
+            log.info("DKIM DEBUG: lookup.txtRecords()[{}]={}", i, lookup.txtRecords().get(i));
+        }
+        
         if (active.getPublicKey() == null || !active.getPublicKey().replaceAll("\\s+", "")
                 .equals(record.getPublicKey() == null ? "" : record.getPublicKey().replaceAll("\\s+", ""))) {
             record.markFailed("DKIM_KEY_MISMATCH");
             return false;
         }
         DkimDnsRecord.MatchResult result = DkimDnsRecord.match(lookup.txtRecords(), active.getPublicKey());
+        log.info(
+            "DKIM DNS verification: domain={}, selector={}, dnsRecords={}, activeKeyFingerprint={}",
+            domain.getDomain(),
+            active.getSelector(),
+            lookup.txtRecords(),
+            fingerprint(active.getPublicKey())
+        );
         if (result.isMatched()) {
             record.markVerified();
             return true;
