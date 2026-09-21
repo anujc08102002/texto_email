@@ -14,7 +14,7 @@ public final class BounceClassifier {
         StatusCode status = StatusCode.parse(statusField);
         BounceClass bounceClass = classifyClass(action, status, diagnosticCode);
         BounceFailureKind kind = classifyKind(status, bounceClass);
-        return new BounceClassification(bounceClass, kind, action, statusField == null ? null : statusField.trim());
+        return new BounceClassification(bounceClass, kind, action, statusField == null ? null : statusField.trim(), diagnosticCode);
     }
 
     private static BounceClass classifyClass(DsnAction action, StatusCode status, String diagnosticCode) {

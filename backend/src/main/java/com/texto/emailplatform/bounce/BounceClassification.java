@@ -7,6 +7,7 @@ public record BounceClassification(
         BounceClass bounceClass,
         BounceFailureKind failureKind,
         DsnAction action,
-        String statusCode
+        String statusCode,
+        String diagnosticCode
 ) {
 }

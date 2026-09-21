@@ -128,17 +128,17 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
   }, [billingLoading, emailLimit, emailPct, emailsLoading, healthy, recentEmails.length]);
 
   return (
-    <div className="flex min-h-full flex-col gap-4 lg:gap-5">
+    <div className="flex min-h-full flex-col gap-4 lg:gap-5 animate-in fade-in duration-500">
       <PageHeader
         eyebrow="Overview"
         title={user?.organization ?? "Workspace"}
         description={`${greetingFor(now)} · ${formatDateTime(now)}`}
         actions={
           <>
-            <Button asChild>
+            <Button asChild className="gradient-border">
               <Link href="/emails/new">Compose</Link>
             </Button>
-            <div className="hidden items-center gap-2 rounded-full border border-border/80 bg-card px-3 py-1.5 xl:inline-flex">
+            <div className="hidden items-center gap-2 rounded-full border border-border/80 bg-card/80 px-3 py-1.5 xl:inline-flex glass">
               <span className={`size-1.5 rounded-full ${healthy ? "bg-success" : "bg-muted-foreground"}`} />
               <span className="text-caption !text-[11px] font-medium">
                 {healthy ? "Platform operational" : "Status unavailable"}
@@ -150,41 +150,44 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {DASHBOARD_METRICS.map((metric, index) => (
-          <MetricCard
-            key={metric.id}
-            metric={metric}
-            icon={METRIC_ICONS[metric.id as keyof typeof METRIC_ICONS] ?? <Activity className="size-4" />}
-            featured={index === 0}
-          />
+          <div key={metric.id} className="animate-in slide-in-from-bottom duration-500" style={{ animationDelay: `${index * 100}ms` }}>
+            <MetricCard
+              metric={metric}
+              icon={METRIC_ICONS[metric.id as keyof typeof METRIC_ICONS] ?? <Activity className="size-4" />}
+              featured={index === 0}
+            />
+          </div>
         ))}
       </div>
       <p className="text-caption -mt-1 hidden sm:block">{PRESENTATION_NOTICE}</p>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
-        <AnalyticsChart
-          title="Volume"
-          description="Weekly send and delivery"
-          data={WEEKLY_SERIES}
-          preview
-          fill
-          className="min-w-0"
-        />
+        <div className="animate-in slide-in-from-left duration-500">
+          <AnalyticsChart
+            title="Volume"
+            description="Weekly send and delivery"
+            data={WEEKLY_SERIES}
+            preview
+            fill
+            className="min-w-0 panel-elevated"
+          />
+        </div>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4 animate-in slide-in-from-right duration-500">
           {attention.length > 0 ? (
-            <SectionPanel title="Needs attention" className="shrink-0">
+            <SectionPanel title="Needs attention" className="shrink-0 glass">
               <ul className="space-y-2">
                 {attention.map((item) => (
                   <li key={item.title}>
                     <Link
                       href={item.href}
-                      className="flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-card/60 px-3 py-2.5 transition-colors hover:border-primary/30 hover:bg-primary/5"
+                      className="group flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-card/60 px-3 py-2.5 transition-all duration-200 hover:border-primary/30 hover:bg-primary/5 hover:-translate-x-1 hover:scale-[1.02]"
                     >
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium">{item.title}</span>
+                        <span className="block text-sm font-medium group-hover:text-primary transition-colors">{item.title}</span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">{item.detail}</span>
                       </span>
-                      <ArrowRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                      <ArrowRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all" />
                     </Link>
                   </li>
                 ))}
@@ -192,7 +195,7 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
             </SectionPanel>
           ) : null}
 
-          <SectionPanel title="Plan" description="Live from GET /api/v1/subscription" className="flex-1">
+          <SectionPanel title="Plan" description="Live from GET /api/v1/subscription" className="flex-1 glass">
             {billingLoading ? (
               <div className="space-y-2">
                 <Skeleton className="h-5 w-32" />
@@ -210,7 +213,7 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
                 <p className="text-caption">
                   Period {subscription.currentPeriodStart} → {subscription.currentPeriodEnd}
                 </p>
-                <Button asChild size="sm" variant="secondary">
+                <Button asChild size="sm" variant="secondary" className="hover:scale-105 transition-transform">
                   <Link href="/billing">Manage billing</Link>
                 </Button>
               </div>
@@ -219,7 +222,7 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
             )}
           </SectionPanel>
 
-          <SectionPanel title="Monthly quota" description="Live from GET /api/v1/usage" className="flex-1">
+          <SectionPanel title="Monthly quota" description="Live from GET /api/v1/usage" className="flex-1 glass">
             {billingLoading ? (
               <Skeleton className="h-16 w-full" />
             ) : (
@@ -231,20 +234,20 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
                   footer={usage ? `Period ${usage.periodStart} → ${usage.periodEnd}` : undefined}
                 />
                 <div className="mt-4 grid grid-cols-3 gap-3 border-t border-border/70 pt-4 text-xs">
-                  <div>
-                    <p className="text-muted-foreground">Domains</p>
+                  <div className="group cursor-default">
+                    <p className="text-muted-foreground group-hover:text-primary transition-colors">Domains</p>
                     <p className="mt-1 text-tech">
                       {domains?.used ?? 0}/{domains?.limit ?? entitlements?.limits.DOMAINS ?? "∞"}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">API keys</p>
+                  <div className="group cursor-default">
+                    <p className="text-muted-foreground group-hover:text-primary transition-colors">API keys</p>
                     <p className="mt-1 text-tech">
                       {apiKeys?.used ?? 0}/{apiKeys?.limit ?? entitlements?.limits.API_KEYS ?? "∞"}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Templates</p>
+                  <div className="group cursor-default">
+                    <p className="text-muted-foreground group-hover:text-primary transition-colors">Templates</p>
                     <p className="mt-1 text-tech">
                       {templates?.used ?? 0}/{templates?.limit ?? entitlements?.limits.TEMPLATES ?? "∞"}
                     </p>
@@ -254,26 +257,27 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
             )}
           </SectionPanel>
 
-          <SectionPanel title="Delivery mix" className="flex-1">
+          <SectionPanel title="Delivery mix" className="flex-1 glass">
             <DeliveryHealth breakdown={DELIVERY_BREAKDOWN} />
           </SectionPanel>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {QUICK_LINKS.map((item) => (
+        {QUICK_LINKS.map((item, index) => (
           <Link
             key={item.href}
             href={item.href}
-            className="panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 transition-colors hover:border-primary/30"
+            className="panel group flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 animate-in slide-in-from-bottom duration-500"
+            style={{ animationDelay: `${(index + 4) * 100}ms` }}
           >
             <span className="flex min-w-0 items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 group-hover:scale-110 transition-all">
                 <item.icon className="size-4" />
               </span>
-              <span className="text-sm font-medium">{item.label}</span>
+              <span className="text-sm font-medium group-hover:text-primary transition-colors">{item.label}</span>
             </span>
-            <ArrowRight className="size-3.5 text-muted-foreground" />
+            <ArrowRight className="size-3.5 text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all" />
           </Link>
         ))}
       </div>
@@ -281,7 +285,7 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
       <SectionPanel
         title="Recent email activity"
         description="Loaded from GET /api/v1/emails"
-        className="min-h-[220px]"
+        className="min-h-[220px] glass"
         action={
           <Button asChild size="sm" variant="ghost">
             <Link href="/emails">View all</Link>
@@ -309,9 +313,9 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
           <ul className="divide-y divide-border/70">
             {recentEmails.slice(0, 8).map((message) => (
               <li key={message.id} className="py-3 first:pt-0 last:pb-0">
-                <Link href={`/emails/${message.id}`} className="flex items-center gap-3">
+                <Link href={`/emails/${message.id}`} className="group flex items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium hover:text-primary">{message.subject}</p>
+                    <p className="truncate text-sm font-medium hover:text-primary transition-colors">{message.subject}</p>
                     <p className="truncate text-sm text-muted-foreground">{message.recipient}</p>
                   </div>
                   <p className="hidden shrink-0 text-xs text-muted-foreground sm:block">

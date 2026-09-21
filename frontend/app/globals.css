@@ -256,7 +256,9 @@
   background-image:
     radial-gradient(ellipse 70% 50% at 0% -15%, var(--glow), transparent 58%),
     radial-gradient(ellipse 45% 32% at 100% 0%, var(--glow-strong), transparent 52%),
-    linear-gradient(180deg, color-mix(in oklch, var(--background) 88%, white) 0%, var(--background) 28%);
+    linear-gradient(180deg, color-mix(in oklch, var(--background) 88%, white) 0%, var(--background) 28%),
+    radial-gradient(circle at 50% 50%, var(--grid-dot) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 32px 32px;
 }
 
 .dark .bg-app,
@@ -264,14 +266,18 @@ html.dark .bg-app {
   background-image:
     radial-gradient(ellipse 55% 40% at 0% -10%, var(--glow), transparent 60%),
     radial-gradient(ellipse 35% 28% at 100% 0%, var(--glow-strong), transparent 55%),
-    linear-gradient(180deg, color-mix(in oklch, var(--background) 70%, black) 0%, var(--background) 38%);
+    linear-gradient(180deg, color-mix(in oklch, var(--background) 70%, black) 0%, var(--background) 38%),
+    radial-gradient(circle at 50% 50%, var(--grid-dot) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 32px 32px;
 }
 
 @utility bg-rail {
   background-color: var(--sidebar);
   background-image:
     radial-gradient(ellipse 80% 50% at 0% 0%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 55%),
-    linear-gradient(180deg, color-mix(in oklch, var(--sidebar) 86%, white) 0%, var(--sidebar) 18%);
+    linear-gradient(180deg, color-mix(in oklch, var(--sidebar) 86%, white) 0%, var(--sidebar) 18%),
+    radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--sidebar-muted) 30%, transparent) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 24px 24px;
 }
 
 @utility panel {
@@ -280,6 +286,8 @@ html.dark .bg-app {
     var(--panel);
   border: 1px solid color-mix(in oklch, var(--border) 88%, transparent);
   box-shadow: var(--shadow-xs);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
 }
 
 @utility panel-elevated {
@@ -288,6 +296,8 @@ html.dark .bg-app {
     var(--panel-elevated);
   border: 1px solid color-mix(in oklch, var(--border) 90%, var(--primary) 10%);
   box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+  transition: all 0.2s ease;
 }
 
 @utility tech-label {
@@ -353,7 +363,9 @@ html.dark .bg-app {
 @utility ambient-card {
   background-image:
     linear-gradient(165deg, color-mix(in oklch, var(--primary) 10%, var(--panel)), var(--panel) 58%),
-    radial-gradient(ellipse 90% 70% at 100% 0%, color-mix(in oklch, var(--primary) 14%, transparent), transparent 58%);
+    radial-gradient(ellipse 90% 70% at 100% 0%, color-mix(in oklch, var(--primary) 14%, transparent), transparent 58%),
+    radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--primary) 8%, transparent) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 20px 20px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -386,5 +398,194 @@ html.dark .shine-border {
   100% {
     transform: scale(2.1);
     opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@utility shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--primary) 15%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+@utility float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@utility glass {
+  background: color-mix(in oklch, var(--card) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+}
+
+@utility gradient-border {
+  position: relative;
+  background: var(--card);
+  border-radius: var(--radius-lg);
+}
+
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: calc(var(--radius-lg) + 1px);
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    color-mix(in oklch, var(--primary) 50%, var(--accent)) 50%,
+    var(--accent) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+.gradient-border:hover::before {
+  opacity: 1;
+}
+
+@utility transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@utility transition-fast {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@utility transition-bounce {
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@utility hover-lift {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+@utility hover-scale {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+@utility active-press {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.active-press:active {
+  transform: scale(0.95);
+}
+
+@utility focus-ring {
+  outline: none;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+}
+
+@utility animate-in {
+  animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@utility slide-in-from-bottom {
+  animation: slideInBottom 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideInBottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility slide-in-from-left {
+  animation: slideInLeft 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@utility slide-in-from-right {
+  animation: slideInRight 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@utility scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }

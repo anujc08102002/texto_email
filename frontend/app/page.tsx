@@ -25,16 +25,16 @@ export default async function HomePage() {
         <div className="absolute top-24 right-[-8%] h-80 w-80 rounded-full bg-warning/20 blur-3xl" />
       </div>
 
-      <header className="relative flex w-full items-center justify-between gap-3 px-4 py-4 sm:px-8 sm:py-5 lg:px-12">
+      <header className="relative flex w-full items-center justify-between gap-3 px-4 py-4 sm:px-8 sm:py-5 lg:px-12 glass backdrop-blur-2xl transition-all duration-300">
         <Brand href="/" />
         <nav className="flex items-center gap-1 sm:gap-2">
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex transition-all duration-200 hover:scale-105">
             <Link href="/plans">Plans</Link>
           </Button>
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex transition-all duration-200 hover:scale-105">
             <Link href="/admin/login">Admin</Link>
           </Button>
-          <Button asChild size="sm">
+          <Button asChild size="sm" className="gradient-border transition-all duration-200 hover:scale-105">
             <Link href="/login">Sign in</Link>
           </Button>
         </nav>
@@ -42,7 +42,7 @@ export default async function HomePage() {
 
       <div className="relative grid w-full items-center gap-10 px-4 pb-10 pt-4 sm:px-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-12 lg:px-12 lg:pb-16 lg:pt-8">
         <div className="min-w-0">
-          <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/80 bg-card/80 px-3 py-1 text-xs shadow-xs backdrop-blur-sm">
+          <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/80 bg-card/80 px-3 py-1 text-xs shadow-xs backdrop-blur-sm shimmer">
             <span className={`size-1.5 shrink-0 rounded-full ${healthy ? "bg-success" : "bg-destructive"}`} aria-hidden />
             <span className="text-tech truncate text-muted-foreground">{statusLabel}</span>
           </div>
@@ -55,13 +55,13 @@ export default async function HomePage() {
             not another marketing blast tool.
           </p>
           <div className="mt-7 flex flex-wrap gap-3 sm:mt-8">
-            <Button asChild size="lg">
+            <Button asChild size="lg" className="gradient-border transition-all duration-200 hover:scale-105">
               <Link href="/login">
                 Open workspace
                 <ArrowRight />
               </Link>
             </Button>
-            <Button asChild variant="secondary" size="lg">
+            <Button asChild variant="secondary" size="lg" className="transition-all duration-200 hover:scale-105">
               <Link href="/plans">View plans</Link>
             </Button>
           </div>
@@ -78,7 +78,7 @@ export default async function HomePage() {
             ))}
           </dl>
         </div>
-        <div className="min-w-0 lg:block">
+        <div className="min-w-0 lg:block animate-in slide-in-from-right duration-500">
           <ProductPreview />
         </div>
       </div>
@@ -96,10 +96,12 @@ export default async function HomePage() {
             { icon: ShieldCheck, title: "Suppressions", body: "Keep bounced and complained addresses out of the path." },
             { icon: Sparkles, title: "Templates", body: "Versioned HTML for product and transactional mail." },
             { icon: ArrowRight, title: "Webhooks", body: "Push delivery events into your own systems." },
-          ].map((item) => (
-            <li key={item.title} className="panel group rounded-2xl p-5 transition-transform duration-150 hover:-translate-y-0.5">
-              <item.icon className="size-4 text-primary" aria-hidden />
-              <p className="mt-4 text-sm font-semibold">{item.title}</p>
+          ].map((item, index) => (
+            <li key={item.title} className="panel group rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 animate-in slide-in-from-bottom duration-500" style={{ animationDelay: `${index * 100}ms` }}>
+              <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 group-hover:scale-110 transition-all">
+                <item.icon className="size-4" aria-hidden />
+              </div>
+              <p className="mt-4 text-sm font-semibold group-hover:text-primary transition-colors">{item.title}</p>
               <p className="text-caption mt-1.5 leading-5">{item.body}</p>
             </li>
           ))}

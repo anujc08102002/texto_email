@@ -35,20 +35,22 @@ function NavLink({
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors duration-150",
+        "group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-all duration-300 ease-out",
         collapsed && "justify-center px-0",
         active
-          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/72 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm scale-[1.02]"
+          : "text-sidebar-foreground/72 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground hover:translate-x-1 hover:scale-[1.02]",
       )}
     >
       {active ? (
-        <span className="absolute inset-y-1.5 left-0 w-[2.5px] rounded-full bg-sidebar-primary" aria-hidden />
+        <span className="absolute inset-y-1.5 left-0 w-[2.5px] rounded-full bg-sidebar-primary shadow-glow animate-pulse" aria-hidden />
       ) : null}
       <Icon
         className={cn(
-          "size-4 shrink-0",
-          active ? "text-sidebar-primary" : "text-sidebar-muted group-hover:text-sidebar-foreground",
+          "size-4 shrink-0 transition-all duration-300 ease-out",
+          active 
+            ? "text-sidebar-primary scale-110" 
+            : "text-sidebar-muted group-hover:text-sidebar-foreground group-hover:scale-110 group-hover:rotate-3",
         )}
       />
       {!collapsed ? <span className="truncate">{label}</span> : <span className="sr-only">{label}</span>}
@@ -84,11 +86,11 @@ export function SidebarContent({
       href="/emails/new"
       onClick={onNavigate}
       className={cn(
-        "flex h-9 items-center justify-center gap-2 rounded-lg bg-primary text-[13px] font-medium text-primary-foreground shadow-sm transition-opacity hover:opacity-90",
+        "group flex h-9 items-center justify-center gap-2 rounded-lg bg-primary text-[13px] font-medium text-primary-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105",
         collapsed ? "px-0" : "px-3",
       )}
     >
-      <PenLine className="size-4" />
+      <PenLine className="size-4 transition-all duration-300 group-hover:rotate-12 group-hover:scale-110" />
       {!collapsed ? <span>Compose</span> : <span className="sr-only">Compose</span>}
     </Link>
   );
@@ -107,9 +109,9 @@ export function SidebarContent({
             type="button"
             aria-label="Collapse sidebar"
             onClick={() => setCollapsed(true)}
-            className="flex size-8 items-center justify-center rounded-lg text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            className="flex size-8 items-center justify-center rounded-lg text-sidebar-muted transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-110 active:scale-95"
           >
-            <PanelLeftClose className="size-4" />
+            <PanelLeftClose className="size-4 transition-transform duration-200" />
           </button>
         ) : null}
       </div>
@@ -122,9 +124,9 @@ export function SidebarContent({
                 type="button"
                 aria-label="Expand sidebar"
                 onClick={() => setCollapsed(false)}
-                className="flex h-9 w-full items-center justify-center rounded-lg text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                className="flex h-9 w-full items-center justify-center rounded-lg text-sidebar-muted transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-110 active:scale-95"
               >
-                <PanelLeftOpen className="size-4" />
+                <PanelLeftOpen className="size-4 transition-transform duration-200" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">Expand</TooltipContent>

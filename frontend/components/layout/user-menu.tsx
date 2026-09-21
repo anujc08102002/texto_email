@@ -40,10 +40,10 @@ export function UserMenu({ user }: { user: AuthUser | null }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-full p-1 pr-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="flex items-center gap-2 rounded-full p-1 pr-2 outline-none transition-all duration-200 hover:bg-muted hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-95"
           aria-label="Workspace menu"
         >
-          <Avatar className="size-7">
+          <Avatar className="size-7 transition-transform duration-200">
             <AvatarFallback>{initials(user.organization || user.email)}</AvatarFallback>
           </Avatar>
           <span className="hidden max-w-[140px] truncate text-left text-sm lg:block">
