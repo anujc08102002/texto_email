@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Test;
 class ComplaintEventHashTest {
 
     @Test
-    void providerEventIdIsPreferredAndStable() {
-        String first = ComplaintEventHash.providerEvent("TEST", "evt-1");
-        String second = ComplaintEventHash.providerEvent("test", "EVT-1");
+    void providerEventIdIsPreferredAndStablePerRecipient() {
+        String first = ComplaintEventHash.providerEvent("TEST", "evt-1", "alice@example.com");
+        String second = ComplaintEventHash.providerEvent("test", "EVT-1", "Alice@Example.com");
         assertThat(first).isEqualTo(second).hasSize(64);
         assertThat(ComplaintEventHash.identity(new ComplaintIngestionRequest(
                 "TEST",
@@ -22,6 +22,7 @@ class ComplaintEventHashTest {
                 null,
                 null
         ))).isEqualTo(first);
+        assertThat(ComplaintEventHash.providerEvent("TEST", "evt-1", "bob@example.com")).isNotEqualTo(first);
     }
 
     @Test

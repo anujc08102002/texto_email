@@ -14,9 +14,14 @@ import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import java.util.List;
 
 /**
- * Consumes SES feedback events from SQS and processes them through the existing bounce/complaint pipelines.
- * Long-polls SQS with configurable wait time and batch size.
- * Messages are only deleted after successful processing.
+ * Consumes SES feedback events from SQS and processes them through bounce/complaint pipelines.
+ *
+ * <p>Lifecycle: receive → process → delete only after successful handling.
+ * Processing exceptions leave the message for SQS retry and queue redrive/DLQ.
+ *
+ * <p>SNS SubscriptionConfirmation / UnsubscribeConfirmation are control messages: they are
+ * acknowledged (deleted) so they do not retry forever. Malformed or unsupported feedback is
+ * not deleted.
  */
 @Component
 @ConditionalOnProperty(prefix = "email-platform.ses-feedback", name = "enabled", havingValue = "true")
@@ -47,7 +52,7 @@ public class SesFeedbackConsumer {
     @Scheduled(fixedDelayString = "${email-platform.ses-feedback.poll-ms:1000}")
     public void pollAndProcess() {
         EmailPlatformProperties.SesFeedback config = properties.getSesFeedback();
-        
+
         if (!config.isEnabled()) {
             return;
         }
@@ -63,10 +68,11 @@ public class SesFeedbackConsumer {
                     .queueUrl(queueUrl)
                     .maxNumberOfMessages(config.getMaxMessages())
                     .waitTimeSeconds(config.getWaitSeconds())
+                    .visibilityTimeout(config.getVisibilityTimeoutSeconds())
                     .build();
 
             List<Message> messages = sqsClient.receiveMessage(request).messages();
-            
+
             if (messages.isEmpty()) {
                 return;
             }
@@ -82,44 +88,44 @@ public class SesFeedbackConsumer {
         }
     }
 
-    private void processMessage(Message message, String queueUrl) {
+    void processMessage(Message message, String queueUrl) {
         String messageId = message.messageId();
         String body = message.body();
 
-        if (body == null || body.isBlank()) {
-            log.warn("SES feedback: empty message body, deleting messageId={}", messageId);
-            deleteMessage(message.receiptHandle(), queueUrl);
-            return;
-        }
-
         try {
-            SesFeedbackEvent event = parser.parse(body);
-            
-            if (event == null) {
-                // Parser returned null (e.g., SNS subscription confirmation)
-                log.info("SES feedback: parser returned null, deleting messageId={}", messageId);
-                deleteMessage(message.receiptHandle(), queueUrl);
-                return;
+            SesFeedbackParseResult parsed = parser.parse(body);
+
+            switch (parsed) {
+                case SesFeedbackParseResult.Control control -> {
+                    log.info(
+                            "SES feedback: SNS control message type={} messageId={} (delete, not retry)",
+                            control.type(),
+                            messageId
+                    );
+                    deleteMessage(message.receiptHandle(), queueUrl);
+                }
+                case SesFeedbackParseResult.Unprocessable unprocessable -> {
+                    throw new UnprocessableSesFeedbackException(unprocessable.reason());
+                }
+                case SesFeedbackParseResult.Feedback feedback -> {
+                    SesFeedbackEvent event = feedback.event();
+                    if (event.isBounce()) {
+                        bounceIngestionService.ingest(event);
+                    } else if (event.isComplaint()) {
+                        complaintIngestionService.ingest(event);
+                    } else {
+                        throw new UnprocessableSesFeedbackException("unsupported_event_type:" + event.eventType());
+                    }
+                    deleteMessage(message.receiptHandle(), queueUrl);
+                    log.debug("SES feedback: processed and deleted messageId={}", messageId);
+                }
             }
-
-            // Route to appropriate ingestion service
-            if (event.isBounce()) {
-                bounceIngestionService.ingest(event);
-            } else if (event.isComplaint()) {
-                complaintIngestionService.ingest(event);
-            } else {
-                log.warn("SES feedback: unsupported event type {}, deleting messageId={}", event.eventType(), messageId);
-                deleteMessage(message.receiptHandle(), queueUrl);
-                return;
-            }
-
-            // Only delete after successful processing
-            deleteMessage(message.receiptHandle(), queueUrl);
-            log.debug("SES feedback: processed and deleted messageId={}", messageId);
-
+        } catch (UnresolvedSesFeedbackException e) {
+            log.warn("SES feedback: unresolved correlation messageId={}, leaving in SQS for retry: {}", messageId, e.getMessage());
+        } catch (UnprocessableSesFeedbackException e) {
+            log.error("SES feedback: unprocessable messageId={}, leaving in SQS for retry/DLQ: {}", messageId, e.getMessage());
         } catch (Exception e) {
             log.error("SES feedback: failed to process messageId={}, leaving in SQS for retry", messageId, e);
-            // Do NOT delete the message - let SQS visibility timeout handle retries
         }
     }
 

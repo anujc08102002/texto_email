@@ -36,6 +36,38 @@ public final class BounceRecipientMatcher {
         return null;
     }
 
+    /**
+     * TO, CC, or BCC for a stored address already known to belong to the message.
+     */
+    public static String recipientType(EmailMessageEntity message, String storedRecipient) {
+        String want = EmailNormalizer.normalize(storedRecipient);
+        if (want.isEmpty() || message == null) {
+            return null;
+        }
+        if (containsNormalized(message.getRecipientsTo(), want)) {
+            return "TO";
+        }
+        if (containsNormalized(message.getRecipientsCc(), want)) {
+            return "CC";
+        }
+        if (containsNormalized(message.getRecipientsBcc(), want)) {
+            return "BCC";
+        }
+        return null;
+    }
+
+    private static boolean containsNormalized(List<String> stored, String want) {
+        if (stored == null) {
+            return false;
+        }
+        for (String value : stored) {
+            if (want.equals(EmailNormalizer.normalize(value))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static List<String> deliverableRecipients(EmailMessageEntity message) {
         List<String> recipients = new ArrayList<>();
         addAll(recipients, message.getRecipientsTo());

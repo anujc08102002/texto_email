@@ -1,6 +1,7 @@
 package com.texto.emailplatform.complaint;
 
 import com.texto.emailplatform.bounce.BounceCorrelationToken;
+import com.texto.emailplatform.common.FeedbackAuthorization;
 import com.texto.emailplatform.common.config.EmailPlatformProperties;
 import com.texto.emailplatform.complaint.domain.ComplaintEventEntity;
 import com.texto.emailplatform.complaint.domain.ComplaintEventRepository;
@@ -11,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,7 +49,18 @@ public class ComplaintIngestionService {
         if (request == null) {
             return ComplaintIngestionResult.rejected("request_required");
         }
-        return persist(sanitize(request), null);
+        return persist(sanitize(request), FeedbackAuthorization.NONE);
+    }
+
+    /**
+     * Trusted Amazon SES → SNS → SQS path. Does not treat the payload as a DSN bounce token.
+     */
+    @Transactional
+    public ComplaintIngestionResult ingestFromTrustedSes(ComplaintIngestionRequest request) {
+        if (request == null) {
+            return ComplaintIngestionResult.rejected("request_required");
+        }
+        return persist(sanitize(request), FeedbackAuthorization.SES);
     }
 
     @Transactional
@@ -82,9 +95,9 @@ public class ComplaintIngestionService {
         return ComplaintIngestionResult.parseFailed(entity.getDiagnostic(), entity);
     }
 
-    private ComplaintIngestionResult persist(ComplaintIngestionRequest request, String diagnostic) {
+    private ComplaintIngestionResult persist(ComplaintIngestionRequest request, FeedbackAuthorization pathAuthorization) {
         String hash = ComplaintEventHash.identity(request);
-        Optional<ComplaintEventEntity> existing = complaintEventRepository.findByEventHash(hash);
+        Optional<ComplaintEventEntity> existing = findDuplicate(request, hash);
         if (existing.isPresent()) {
             complaintMetrics.incrementDuplicate();
             return ComplaintIngestionResult.duplicate(existing.get());
@@ -95,7 +108,8 @@ public class ComplaintIngestionService {
         String storedRecipient = correlation.matched()
                 ? ComplaintApplicationService.matchingRecipient(correlation.message(), request.recipient())
                 : null;
-        ComplaintPolicyDecision decision = ComplaintPolicy.decide(correlation.allowsPolicy(), storedRecipient != null);
+        FeedbackAuthorization authorization = resolveAuthorization(pathAuthorization, request, correlation, storedRecipient);
+        ComplaintPolicyDecision decision = ComplaintPolicy.decide(authorization, storedRecipient != null);
 
         String correlationStatus = correlation.matched()
                 ? ComplaintEventEntity.CORRELATION_MATCHED
@@ -128,10 +142,15 @@ public class ComplaintIngestionService {
                 request.providerMessageId(),
                 tokenFp,
                 request.occurredAt(),
-                diagnostic,
+                null,
                 request.metadata()
         );
-        complaintEventRepository.save(entity);
+        try {
+            complaintEventRepository.save(entity);
+        } catch (DataIntegrityViolationException duplicate) {
+            complaintMetrics.incrementDuplicate();
+            return ComplaintIngestionResult.duplicate(entity);
+        }
         complaintMetrics.incrementEvent();
 
         if (correlation.matched()) {
@@ -139,18 +158,18 @@ public class ComplaintIngestionService {
             complaintApplicationService.apply(
                     correlation.message(),
                     storedRecipient,
-                    correlation.allowsPolicy()
+                    authorization
             );
         } else {
             complaintMetrics.incrementUncorrelated();
         }
 
         log.info(
-                "Complaint ingested eventId={} type={} correlated={} mutationAllowed={} emailMessageId={} tenantId={} tokenFp={}",
+                "Complaint ingested eventId={} type={} correlated={} authorization={} emailMessageId={} tenantId={} tokenFp={}",
                 entity.getId(),
                 entity.getComplaintType(),
                 correlation.matched(),
-                correlation.allowsPolicy(),
+                authorization,
                 entity.getEmailMessageId(),
                 tenantId,
                 tokenFp == null ? "none" : tokenFp
@@ -160,6 +179,39 @@ public class ComplaintIngestionService {
             return ComplaintIngestionResult.uncorrelated(entity);
         }
         return ComplaintIngestionResult.accepted(entity);
+    }
+
+    private Optional<ComplaintEventEntity> findDuplicate(ComplaintIngestionRequest request, String hash) {
+        Optional<ComplaintEventEntity> byHash = complaintEventRepository.findByEventHash(hash);
+        if (byHash.isPresent()) {
+            return byHash;
+        }
+        if (request.providerEventId() == null || request.providerEventId().isBlank() || request.recipient() == null) {
+            return Optional.empty();
+        }
+        return complaintEventRepository.findByProviderAndProviderEventIdAndRecipient(
+                request.provider(),
+                request.providerEventId(),
+                request.recipient()
+        );
+    }
+
+    private static FeedbackAuthorization resolveAuthorization(
+            FeedbackAuthorization pathAuthorization,
+            ComplaintIngestionRequest request,
+            ComplaintCorrelation correlation,
+            String storedRecipient
+    ) {
+        if (pathAuthorization == FeedbackAuthorization.SES) {
+            if (correlation.matched()
+                    && correlation.source() == ComplaintCorrelation.Source.PROVIDER
+                    && storedRecipient != null
+                    && "AWS_SES".equalsIgnoreCase(request.provider())) {
+                return FeedbackAuthorization.SES;
+            }
+            return FeedbackAuthorization.NONE;
+        }
+        return correlation.allowsPolicy() ? FeedbackAuthorization.TOKEN : FeedbackAuthorization.NONE;
     }
 
     ComplaintIngestionRequest sanitize(ComplaintIngestionRequest request) {

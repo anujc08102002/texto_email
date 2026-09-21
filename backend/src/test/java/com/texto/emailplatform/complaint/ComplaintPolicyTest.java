@@ -20,4 +20,12 @@ class ComplaintPolicyTest {
     void missingRecipientIsNoAction() {
         assertThat(ComplaintPolicy.decide(true, false)).isEqualTo(ComplaintPolicyDecision.NO_ACTION);
     }
+
+    @Test
+    void sesAuthorizationSuppressesWhenRecipientOnMessage() {
+        assertThat(ComplaintPolicy.decide(com.texto.emailplatform.common.FeedbackAuthorization.SES, true).suppresses())
+                .isTrue();
+        assertThat(ComplaintPolicy.decide(com.texto.emailplatform.common.FeedbackAuthorization.NONE, true))
+                .isEqualTo(ComplaintPolicyDecision.NO_ACTION);
+    }
 }

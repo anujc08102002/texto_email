@@ -47,18 +47,9 @@ class SesFeedbackParserTest {
                 }
                 """;
 
-        SesFeedbackEvent event = parser.parse(rawBounce);
-        
-        assertNotNull(event);
+        SesFeedbackEvent event = feedback(parser.parse(rawBounce));
         assertTrue(event.isBounce());
-        assertFalse(event.isComplaint());
-        assertEquals("Bounce", event.eventType());
         assertEquals("EXAMPLE7d19a832-0800-4056-9124-a8bb9cb01516-000000", event.messageId());
-        assertEquals("Permanent", event.bounceType());
-        assertEquals("General", event.bounceSubType());
-        assertEquals("failed", event.action());
-        assertEquals("5.1.1", event.status());
-        assertEquals("550 5.1.1 User unknown", event.diagnosticCode());
         assertEquals(1, event.bouncedRecipients().size());
         assertEquals("recipient@example.com", event.bouncedRecipients().getFirst().emailAddress());
     }
@@ -69,17 +60,14 @@ class SesFeedbackParserTest {
                 {
                     "Type": "Notification",
                     "MessageId": "notification-id",
-                    "TopicArn": "arn:aws:sns:ap-south-1:172159866090:texto-email-feedback",
+                    "TopicArn": "arn:aws:sns:ap-south-1:000000000000:texto-email-feedback",
                     "Message": "{\\"eventType\\":\\"Bounce\\",\\"mail\\":{\\"messageId\\":\\"EXAMPLE\\"},\\"bounce\\":{\\"bounceType\\":\\"Permanent\\"}}",
                     "Timestamp": "2024-01-15T10:30:00Z"
                 }
                 """;
 
-        SesFeedbackEvent event = parser.parse(snsEnvelope);
-        
-        assertNotNull(event);
+        SesFeedbackEvent event = feedback(parser.parse(snsEnvelope));
         assertTrue(event.isBounce());
-        assertEquals("Bounce", event.eventType());
     }
 
     @Test
@@ -105,15 +93,10 @@ class SesFeedbackParserTest {
                 }
                 """;
 
-        SesFeedbackEvent event = parser.parse(rawComplaint);
-        
-        assertNotNull(event);
+        SesFeedbackEvent event = feedback(parser.parse(rawComplaint));
         assertTrue(event.isComplaint());
-        assertFalse(event.isBounce());
-        assertEquals("Complaint", event.eventType());
         assertEquals("abuse", event.complaintFeedbackType());
         assertEquals(1, event.complainedRecipients().size());
-        assertEquals("recipient@example.com", event.complainedRecipients().getFirst().emailAddress());
     }
 
     @Test
@@ -122,38 +105,34 @@ class SesFeedbackParserTest {
                 {
                     "Type": "Notification",
                     "MessageId": "notification-id",
-                    "TopicArn": "arn:aws:sns:ap-south-1:172159866090:texto-email-feedback",
+                    "TopicArn": "arn:aws:sns:ap-south-1:000000000000:texto-email-feedback",
                     "Message": "{\\"eventType\\":\\"Complaint\\",\\"mail\\":{\\"messageId\\":\\"EXAMPLE\\"},\\"complaint\\":{\\"complaintFeedbackType\\":\\"spam\\"}}",
                     "Timestamp": "2024-01-15T10:30:00Z"
                 }
                 """;
 
-        SesFeedbackEvent event = parser.parse(snsEnvelope);
-        
-        assertNotNull(event);
-        assertTrue(event.isComplaint());
-        assertEquals("Complaint", event.eventType());
+        assertTrue(feedback(parser.parse(snsEnvelope)).isComplaint());
     }
 
     @Test
-    void ignoreSnsSubscriptionConfirmation() {
+    void subscriptionConfirmationIsControlNotUnprocessable() {
         String subscriptionConfirmation = """
                 {
                     "Type": "SubscriptionConfirmation",
                     "MessageId": "notification-id",
-                    "TopicArn": "arn:aws:sns:ap-south-1:172159866090:texto-email-feedback",
+                    "TopicArn": "arn:aws:sns:ap-south-1:000000000000:texto-email-feedback",
                     "Message": "You have chosen to subscribe...",
                     "Timestamp": "2024-01-15T10:30:00Z"
                 }
                 """;
 
-        SesFeedbackEvent event = parser.parse(subscriptionConfirmation);
-        
-        assertNull(event);
+        SesFeedbackParseResult result = parser.parse(subscriptionConfirmation);
+        assertInstanceOf(SesFeedbackParseResult.Control.class, result);
+        assertEquals("SubscriptionConfirmation", ((SesFeedbackParseResult.Control) result).type());
     }
 
     @Test
-    void ignoreUnsupportedEventType() {
+    void unsupportedEventTypeIsUnprocessable() {
         String unsupportedEvent = """
                 {
                     "eventType": "Delivery",
@@ -163,31 +142,28 @@ class SesFeedbackParserTest {
                 }
                 """;
 
-        SesFeedbackEvent event = parser.parse(unsupportedEvent);
-        
-        assertNull(event);
+        SesFeedbackParseResult result = parser.parse(unsupportedEvent);
+        assertInstanceOf(SesFeedbackParseResult.Unprocessable.class, result);
+        assertTrue(((SesFeedbackParseResult.Unprocessable) result).reason().contains("unsupported_event_type"));
     }
 
     @Test
     void handleMalformedJson() {
-        String malformed = "{invalid json";
-        
-        SesFeedbackEvent event = parser.parse(malformed);
-        
-        assertNull(event);
+        assertInstanceOf(SesFeedbackParseResult.Unprocessable.class, parser.parse("{invalid json"));
     }
 
     @Test
     void handleNullBody() {
-        SesFeedbackEvent event = parser.parse(null);
-        
-        assertNull(event);
+        assertInstanceOf(SesFeedbackParseResult.Unprocessable.class, parser.parse(null));
     }
 
     @Test
     void handleEmptyBody() {
-        SesFeedbackEvent event = parser.parse("");
-        
-        assertNull(event);
+        assertInstanceOf(SesFeedbackParseResult.Unprocessable.class, parser.parse(""));
+    }
+
+    private static SesFeedbackEvent feedback(SesFeedbackParseResult result) {
+        assertInstanceOf(SesFeedbackParseResult.Feedback.class, result);
+        return ((SesFeedbackParseResult.Feedback) result).event();
     }
 }

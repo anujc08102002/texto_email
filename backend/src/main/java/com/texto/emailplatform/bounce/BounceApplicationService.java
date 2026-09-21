@@ -1,5 +1,6 @@
 package com.texto.emailplatform.bounce;
 
+import com.texto.emailplatform.common.FeedbackAuthorization;
 import com.texto.emailplatform.email.domain.EmailMessageEntity;
 import com.texto.emailplatform.email.domain.EmailMessageRepository;
 import com.texto.emailplatform.suppression.SuppressionService;
@@ -44,8 +45,22 @@ public class BounceApplicationService {
             BounceClassification classification,
             boolean tokenCorrelated
     ) {
+        return apply(
+                message,
+                storedRecipient,
+                classification,
+                tokenCorrelated ? FeedbackAuthorization.TOKEN : FeedbackAuthorization.NONE
+        );
+    }
+
+    public BouncePolicyDecision apply(
+            EmailMessageEntity message,
+            String storedRecipient,
+            BounceClassification classification,
+            FeedbackAuthorization authorization
+    ) {
         boolean onMessage = storedRecipient != null;
-        BouncePolicyDecision decision = BouncePolicy.decide(classification, tokenCorrelated, onMessage);
+        BouncePolicyDecision decision = BouncePolicy.decide(classification, authorization, onMessage);
         if (decision.action() == BouncePolicyAction.NO_ACTION || message == null) {
             return decision;
         }

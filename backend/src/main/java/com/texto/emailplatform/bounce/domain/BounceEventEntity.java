@@ -64,6 +64,12 @@ public class BounceEventEntity {
     @Column(name = "original_message_id", length = 255)
     private String originalMessageId;
 
+    @Column(name = "provider", length = 64)
+    private String provider;
+
+    @Column(name = "provider_event_id", length = 128)
+    private String providerEventId;
+
     @Column(name = "reporting_mta", length = 255)
     private String reportingMta;
 
@@ -106,6 +112,54 @@ public class BounceEventEntity {
             Instant lastAttemptDate,
             Instant willRetryUntil
     ) {
+        return create(
+                tenantId,
+                emailMessageId,
+                eventHash,
+                correlationStatus,
+                bounceClass,
+                failureKind,
+                dsnAction,
+                statusCode,
+                diagnosticCode,
+                diagnosticMessage,
+                originalRecipient,
+                finalRecipient,
+                originalSender,
+                originalMessageId,
+                reportingMta,
+                remoteMta,
+                arrivalDate,
+                lastAttemptDate,
+                willRetryUntil,
+                null,
+                null
+        );
+    }
+
+    public static BounceEventEntity create(
+            UUID tenantId,
+            UUID emailMessageId,
+            String eventHash,
+            String correlationStatus,
+            BounceClass bounceClass,
+            BounceFailureKind failureKind,
+            DsnAction dsnAction,
+            String statusCode,
+            String diagnosticCode,
+            String diagnosticMessage,
+            String originalRecipient,
+            String finalRecipient,
+            String originalSender,
+            String originalMessageId,
+            String reportingMta,
+            String remoteMta,
+            Instant arrivalDate,
+            Instant lastAttemptDate,
+            Instant willRetryUntil,
+            String provider,
+            String providerEventId
+    ) {
         Instant now = Instant.now();
         BounceEventEntity entity = new BounceEventEntity();
         entity.id = UUID.randomUUID();
@@ -123,6 +177,8 @@ public class BounceEventEntity {
         entity.finalRecipient = clip(finalRecipient, 320);
         entity.originalSender = clip(originalSender, 320);
         entity.originalMessageId = clip(originalMessageId, 255);
+        entity.provider = clip(provider, 64);
+        entity.providerEventId = clip(providerEventId, 128);
         entity.reportingMta = clip(reportingMta, 255);
         entity.remoteMta = clip(remoteMta, 255);
         entity.arrivalDate = arrivalDate;
@@ -199,6 +255,14 @@ public class BounceEventEntity {
 
     public String getOriginalMessageId() {
         return originalMessageId;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public String getProviderEventId() {
+        return providerEventId;
     }
 
     public String getReportingMta() {

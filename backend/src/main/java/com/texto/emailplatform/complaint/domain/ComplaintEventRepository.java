@@ -9,6 +9,12 @@ public interface ComplaintEventRepository extends JpaRepository<ComplaintEventEn
 
     Optional<ComplaintEventEntity> findByEventHash(String eventHash);
 
+    Optional<ComplaintEventEntity> findByProviderAndProviderEventIdAndRecipient(
+            String provider,
+            String providerEventId,
+            String recipient
+    );
+
     List<ComplaintEventEntity> findByTenantIdAndEmailMessageId(UUID tenantId, UUID emailMessageId);
 
     Optional<ComplaintEventEntity> findByIdAndTenantId(UUID id, UUID tenantId);

@@ -1,6 +1,7 @@
 package com.texto.emailplatform.complaint;
 
 import com.texto.emailplatform.bounce.BounceRecipientMatcher;
+import com.texto.emailplatform.common.FeedbackAuthorization;
 import com.texto.emailplatform.email.domain.EmailMessageEntity;
 import com.texto.emailplatform.suppression.SuppressionService;
 import com.texto.emailplatform.webhook.WebhookEventPublisher;
@@ -38,8 +39,20 @@ public class ComplaintApplicationService {
             String storedRecipient,
             boolean tokenCorrelated
     ) {
+        return apply(
+                message,
+                storedRecipient,
+                tokenCorrelated ? FeedbackAuthorization.TOKEN : FeedbackAuthorization.NONE
+        );
+    }
+
+    public ComplaintPolicyDecision apply(
+            EmailMessageEntity message,
+            String storedRecipient,
+            FeedbackAuthorization authorization
+    ) {
         boolean onMessage = storedRecipient != null;
-        ComplaintPolicyDecision decision = ComplaintPolicy.decide(tokenCorrelated, onMessage);
+        ComplaintPolicyDecision decision = ComplaintPolicy.decide(authorization, onMessage);
         if (!decision.suppresses() || message == null) {
             return decision;
         }

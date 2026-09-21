@@ -11,6 +11,12 @@ public interface BounceEventRepository extends JpaRepository<BounceEventEntity, 
 
     Optional<BounceEventEntity> findByEventHash(String eventHash);
 
+    Optional<BounceEventEntity> findByProviderAndProviderEventIdAndFinalRecipient(
+            String provider,
+            String providerEventId,
+            String finalRecipient
+    );
+
     List<BounceEventEntity> findByTenantIdAndEmailMessageId(UUID tenantId, UUID emailMessageId);
 
     Optional<BounceEventEntity> findByIdAndTenantId(UUID id, UUID tenantId);

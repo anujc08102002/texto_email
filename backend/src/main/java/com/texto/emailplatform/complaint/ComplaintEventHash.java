@@ -15,7 +15,17 @@ public final class ComplaintEventHash {
     }
 
     public static String providerEvent(String provider, String providerEventId) {
-        String material = String.join("|", "PEID", normalize(provider), normalize(providerEventId));
+        return providerEvent(provider, providerEventId, null);
+    }
+
+    public static String providerEvent(String provider, String providerEventId, String recipient) {
+        String material = String.join(
+                "|",
+                "PEID",
+                normalize(provider),
+                normalize(providerEventId),
+                normalizeAddress(recipient)
+        );
         return sha256(material);
     }
 
@@ -50,7 +60,7 @@ public final class ComplaintEventHash {
             return parseFailure(new byte[0]);
         }
         if (request.providerEventId() != null && !request.providerEventId().isBlank()) {
-            return providerEvent(request.provider(), request.providerEventId());
+            return providerEvent(request.provider(), request.providerEventId(), request.recipient());
         }
         return canonical(
                 request.provider(),

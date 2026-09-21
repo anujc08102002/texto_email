@@ -232,6 +232,19 @@ class DsnIngestionServiceTest {
     }
 
     @Test
+    void providerMessageIdFallbackDoesNotMutateOrSuppress() {
+        when(emailMessageRepository.findByProviderMessageId("qid")).thenReturn(List.of(tenantAMessage));
+
+        DsnIngestionResult result = service.ingest(DsnIngestionRequest.of(
+                DsnFixtures.hardBounce("qid", "alice@example.com")
+        ));
+
+        assertThat(tenantAMessage.getStatus()).isEqualTo(EmailMessageEntity.STATUS_DELIVERED);
+        verify(suppressionService, never()).recordBounce(any(), any(), any(), any());
+        assertThat(result.outcome()).isEqualTo(DsnIngestionResult.Outcome.ACCEPTED);
+    }
+
+    @Test
     void malformedInputDoesNotThrow() {
         assertThatCode(() -> {
             DsnIngestionResult result = service.ingest(DsnIngestionRequest.of("garbage".getBytes()));

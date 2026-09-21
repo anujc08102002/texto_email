@@ -1,9 +1,10 @@
 package com.texto.emailplatform.sesfeedback;
 
 import com.texto.emailplatform.complaint.ComplaintIngestionRequest;
-import com.texto.emailplatform.complaint.ComplaintIngestionService;
 import com.texto.emailplatform.complaint.ComplaintIngestionResult;
+import com.texto.emailplatform.complaint.ComplaintIngestionService;
 import com.texto.emailplatform.complaint.ComplaintType;
+import com.texto.emailplatform.email.domain.EmailMessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -13,80 +14,92 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Adapts SES complaint events to the existing complaint processing pipeline.
- * Reuses ComplaintIngestionService for correlation and policy application.
+ * Adapts SES complaint events to {@link ComplaintIngestionService}.
+ * Exceptions propagate so {@link SesFeedbackConsumer} does not delete the SQS message.
  */
 @Service
 public class SesComplaintIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(SesComplaintIngestionService.class);
-    private static final String PROVIDER = "AWS_SES";
+    static final String PROVIDER = "AWS_SES";
 
     private final ComplaintIngestionService complaintIngestionService;
+    private final EmailMessageRepository emailMessageRepository;
 
-    public SesComplaintIngestionService(ComplaintIngestionService complaintIngestionService) {
+    public SesComplaintIngestionService(
+            ComplaintIngestionService complaintIngestionService,
+            EmailMessageRepository emailMessageRepository
+    ) {
         this.complaintIngestionService = complaintIngestionService;
+        this.emailMessageRepository = emailMessageRepository;
     }
 
     public void ingest(SesFeedbackEvent event) {
         if (event == null || !event.isComplaint()) {
-            log.warn("Invalid SES complaint event");
-            return;
+            throw new UnprocessableSesFeedbackException("invalid_ses_complaint");
         }
 
         String providerMessageId = event.messageId();
         if (providerMessageId == null || providerMessageId.isBlank()) {
-            log.warn("SES complaint event missing provider message ID");
-            return;
+            throw new UnprocessableSesFeedbackException("missing_provider_message_id");
         }
-
-        // Get the first complained recipient (SES typically sends one per event)
         if (event.complainedRecipients() == null || event.complainedRecipients().isEmpty()) {
-            log.warn("SES complaint event has no complained recipients");
+            throw new UnprocessableSesFeedbackException("missing_complained_recipients");
+        }
+
+        var messages = emailMessageRepository.findByProviderMessageId(providerMessageId);
+        if (messages.isEmpty()) {
+            throw new UnresolvedSesFeedbackException("unmatched_provider_message_id");
+        }
+        if (messages.size() > 1) {
+            throw new UnresolvedSesFeedbackException("ambiguous_provider_message_id");
+        }
+
+        for (SesFeedbackEvent.ComplainedRecipient complainedRecipient : event.complainedRecipients()) {
+            ingestRecipient(event, providerMessageId, complainedRecipient);
+        }
+    }
+
+    private void ingestRecipient(
+            SesFeedbackEvent event,
+            String providerMessageId,
+            SesFeedbackEvent.ComplainedRecipient complainedRecipient
+    ) {
+        if (complainedRecipient == null
+                || complainedRecipient.emailAddress() == null
+                || complainedRecipient.emailAddress().isBlank()) {
+            log.warn("SES complaint: skipping blank recipient providerMessageId={}", providerMessageId);
             return;
         }
 
-        String recipient = event.complainedRecipients().getFirst().emailAddress();
-        if (recipient == null || recipient.isBlank()) {
-            log.warn("SES complaint event has invalid recipient");
-            return;
-        }
-
-        // Map SES complaint fields to ComplaintIngestionRequest
         String complaintType = mapComplaintType(event.complaintFeedbackType());
         Instant occurredAt = event.timestamp() != null ? event.timestamp() : Instant.now();
-        
-        // Build metadata (sanitized)
+
         Map<String, String> metadata = new LinkedHashMap<>();
         if (event.metadata() != null) {
             metadata.putAll(event.metadata());
         }
-        metadata.put("source", event.source() != null ? event.source() : "AWS_SES");
+        metadata.put("source", event.source() != null ? event.source() : PROVIDER);
 
         ComplaintIngestionRequest request = new ComplaintIngestionRequest(
                 PROVIDER,
-                event.feedbackId(), // providerEventId
-                null, // messageId (not available from SES)
+                event.feedbackId(),
+                null,
                 providerMessageId,
-                recipient,
-                null, // correlationToken (not available from SES)
+                complainedRecipient.emailAddress(),
+                null,
                 complaintType,
                 occurredAt,
                 metadata
         );
 
-        try {
-            ComplaintIngestionResult result = complaintIngestionService.ingest(request);
-            log.info(
-                    "SES complaint ingested providerMessageId={} recipient={} complaintType={} result={}",
-                    providerMessageId,
-                    recipient,
-                    complaintType,
-                    result.getClass().getSimpleName()
-            );
-        } catch (Exception e) {
-            log.error("Failed to ingest SES complaint", e);
-        }
+        ComplaintIngestionResult result = complaintIngestionService.ingestFromTrustedSes(request);
+        log.info(
+                "SES complaint ingested providerMessageId={} complaintType={} result={}",
+                providerMessageId,
+                complaintType,
+                result.getClass().getSimpleName()
+        );
     }
 
     private String mapComplaintType(String sesComplaintFeedbackType) {
@@ -97,7 +110,7 @@ public class SesComplaintIngestionService {
             case "abuse" -> ComplaintType.ABUSE.name();
             case "spam" -> ComplaintType.SPAM.name();
             case "fraud" -> ComplaintType.FRAUD.name();
-            case "virus" -> ComplaintType.ABUSE.name(); // Map virus to abuse
+            case "virus" -> ComplaintType.ABUSE.name();
             case "other" -> ComplaintType.UNKNOWN.name();
             default -> ComplaintType.UNKNOWN.name();
         };

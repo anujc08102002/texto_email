@@ -2,6 +2,7 @@ package com.texto.emailplatform.bounce;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.texto.emailplatform.common.FeedbackAuthorization;
 import org.junit.jupiter.api.Test;
 
 class BouncePolicyTest {
@@ -43,10 +44,26 @@ class BouncePolicyTest {
     }
 
     @Test
+    void sesAuthorizationSuppressesHardBounce() {
+        BounceClassification classification = BounceClassifier.classify("failed", "5.1.1", "smtp; 550 5.1.1");
+        assertThat(BouncePolicy.decide(classification, FeedbackAuthorization.SES, true).action())
+                .isEqualTo(BouncePolicyAction.SUPPRESS);
+    }
+
+    @Test
+    void sesAuthorizationWithoutRecipientIsNoAction() {
+        BounceClassification classification = BounceClassifier.classify("failed", "5.1.1", "smtp; 550");
+        assertThat(BouncePolicy.decide(classification, FeedbackAuthorization.SES, false))
+                .isEqualTo(BouncePolicyDecision.NO_ACTION);
+    }
+
+    @Test
     void missingTokenOrRecipientIsNoAction() {
         BounceClassification classification = BounceClassifier.classify("failed", "5.1.1", "smtp; 550");
         assertThat(BouncePolicy.decide(classification, false, true)).isEqualTo(BouncePolicyDecision.NO_ACTION);
         assertThat(BouncePolicy.decide(classification, true, false)).isEqualTo(BouncePolicyDecision.NO_ACTION);
         assertThat(BouncePolicy.decide(null, true, true)).isEqualTo(BouncePolicyDecision.NO_ACTION);
+        assertThat(BouncePolicy.decide(classification, FeedbackAuthorization.NONE, true))
+                .isEqualTo(BouncePolicyDecision.NO_ACTION);
     }
 }

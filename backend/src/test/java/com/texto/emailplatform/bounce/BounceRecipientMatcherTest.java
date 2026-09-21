@@ -45,5 +45,7 @@ class BounceRecipientMatcherTest {
         assertThat(BounceRecipientMatcher.matchingStoredRecipient(message, dsn)).isEqualTo("Alice@Example.com");
         assertThat(BounceRecipientMatcher.matchingStoredRecipient(message, "not-an-address")).isNull();
         assertThat(BounceRecipientMatcher.matchingStoredRecipient(message, "carol@example.com")).isNull();
+        assertThat(BounceRecipientMatcher.recipientType(message, "Alice@Example.com")).isEqualTo("TO");
+        assertThat(BounceRecipientMatcher.recipientType(message, "bob@example.com")).isEqualTo("CC");
     }
 }

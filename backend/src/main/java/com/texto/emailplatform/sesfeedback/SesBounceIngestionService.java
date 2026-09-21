@@ -1,28 +1,37 @@
 package com.texto.emailplatform.sesfeedback;
 
-import com.texto.emailplatform.bounce.*;
+import com.texto.emailplatform.bounce.BounceApplicationService;
+import com.texto.emailplatform.bounce.BounceClass;
+import com.texto.emailplatform.bounce.BounceClassification;
+import com.texto.emailplatform.bounce.BounceEventHash;
+import com.texto.emailplatform.bounce.BounceFailureKind;
+import com.texto.emailplatform.bounce.BounceMetrics;
+import com.texto.emailplatform.bounce.BounceRecipientMatcher;
+import com.texto.emailplatform.bounce.DsnAction;
 import com.texto.emailplatform.bounce.domain.BounceEventEntity;
 import com.texto.emailplatform.bounce.domain.BounceEventRepository;
+import com.texto.emailplatform.common.FeedbackAuthorization;
 import com.texto.emailplatform.email.domain.EmailMessageEntity;
 import com.texto.emailplatform.email.domain.EmailMessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Adapts SES bounce events to the existing bounce processing pipeline.
- * Uses providerMessageId for correlation and respects existing bounce policy.
+ * Adapts SES bounce events to the bounce processing pipeline.
+ * Unique {@code mail.messageId} → {@code providerMessageId} correlates the outbound message.
+ * State mutation uses {@link FeedbackAuthorization#SES}, not DSN token correlation.
  */
 @Service
 public class SesBounceIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(SesBounceIngestionService.class);
-    private static final String PROVIDER = "AWS_SES";
+    static final String PROVIDER = "AWS_SES";
 
     private final EmailMessageRepository emailMessageRepository;
     private final BounceEventRepository bounceEventRepository;
@@ -44,138 +53,149 @@ public class SesBounceIngestionService {
     @Transactional
     public void ingest(SesFeedbackEvent event) {
         if (event == null || !event.isBounce()) {
-            log.warn("Invalid SES bounce event");
-            return;
+            throw new UnprocessableSesFeedbackException("invalid_ses_bounce");
         }
 
         String providerMessageId = event.messageId();
         if (providerMessageId == null || providerMessageId.isBlank()) {
-            log.warn("SES bounce event missing provider message ID");
-            return;
+            throw new UnprocessableSesFeedbackException("missing_provider_message_id");
+        }
+        if (event.bouncedRecipients() == null || event.bouncedRecipients().isEmpty()) {
+            throw new UnprocessableSesFeedbackException("missing_bounced_recipients");
         }
 
-        // Find email message by provider message ID
         var messages = emailMessageRepository.findByProviderMessageId(providerMessageId);
         if (messages.isEmpty()) {
-            log.info("SES bounce: no message found for providerMessageId={} (no suppression)", providerMessageId);
-            return;
+            throw new UnresolvedSesFeedbackException("unmatched_provider_message_id");
         }
-
         if (messages.size() > 1) {
-            log.warn("SES bounce: multiple messages found for providerMessageId={}, skipping to avoid incorrect correlation", providerMessageId);
-            return;
+            throw new UnresolvedSesFeedbackException("ambiguous_provider_message_id");
         }
 
         EmailMessageEntity message = messages.getFirst();
         UUID tenantId = message.getTenantId();
 
-        // Process the first bounced recipient (SES typically sends one per event)
-        if (event.bouncedRecipients() == null || event.bouncedRecipients().isEmpty()) {
-            log.warn("SES bounce event has no bounced recipients");
+        for (SesFeedbackEvent.BouncedRecipient bouncedRecipient : event.bouncedRecipients()) {
+            ingestRecipient(event, message, tenantId, bouncedRecipient);
+        }
+    }
+
+    private void ingestRecipient(
+            SesFeedbackEvent event,
+            EmailMessageEntity message,
+            UUID tenantId,
+            SesFeedbackEvent.BouncedRecipient bouncedRecipient
+    ) {
+        if (bouncedRecipient == null || bouncedRecipient.emailAddress() == null || bouncedRecipient.emailAddress().isBlank()) {
+            log.warn("SES bounce: skipping blank recipient emailMessageId={}", message.getId());
             return;
         }
 
-        SesFeedbackEvent.BouncedRecipient bouncedRecipient = event.bouncedRecipients().getFirst();
-        String recipient = bouncedRecipient.emailAddress();
-
-        // Match recipient to stored recipients in the message
-        String storedRecipient = findMatchingRecipient(message, recipient);
-        if (storedRecipient == null) {
-            log.info("SES bounce: recipient {} not found in message {} (no suppression)", recipient, message.getId());
-            return;
-        }
-
-        // Map SES bounce fields to existing bounce model
+        String storedRecipient = BounceRecipientMatcher.matchingStoredRecipient(message, bouncedRecipient.emailAddress());
+        String recipientType = BounceRecipientMatcher.recipientType(message, storedRecipient);
         BounceClassification classification = mapBounceClassification(event, bouncedRecipient);
         String eventHash = BounceEventHash.canonical(
                 tenantId,
                 event.messageId(),
-                storedRecipient,
-                classification.dsnAction() != null ? classification.dsnAction().name() : null,
+                storedRecipient != null ? storedRecipient : bouncedRecipient.emailAddress(),
+                classification.action() != null ? classification.action().name() : null,
                 classification.statusCode(),
                 classification.diagnosticCode(),
                 event.reportingMta(),
                 event.timestamp() != null ? event.timestamp().toString() : null
         );
 
-        // Check for duplicate
-        Optional<BounceEventEntity> existing = bounceEventRepository.findByEventHash(eventHash);
-        if (existing.isPresent()) {
+        if (isDuplicate(eventHash, storedRecipient != null ? storedRecipient : bouncedRecipient.emailAddress(), event.feedbackId())) {
             bounceMetrics.incrementDuplicate();
-            log.debug("SES bounce: duplicate event ignored, eventId={}", existing.get().getId());
+            log.debug("SES bounce: duplicate ignored emailMessageId={} recipientType={}", message.getId(), recipientType);
             return;
         }
 
-        // Create bounce event entity
+        String correlationStatus = storedRecipient != null
+                ? BounceEventEntity.CORRELATION_MATCHED
+                : BounceEventEntity.CORRELATION_UNMATCHED;
         BounceEventEntity bounceEvent = BounceEventEntity.create(
                 tenantId,
                 message.getId(),
                 eventHash,
-                BounceEventEntity.CORRELATION_MATCHED,
+                correlationStatus,
                 classification.bounceClass(),
                 classification.failureKind(),
-                classification.dsnAction(),
+                classification.action(),
                 classification.statusCode(),
                 classification.diagnosticCode(),
-                event.diagnosticCode(), // diagnostic message
-                recipient,
-                storedRecipient,
+                firstNonBlank(bouncedRecipient.diagnosticCode(), event.diagnosticCode()),
+                bouncedRecipient.emailAddress(),
+                storedRecipient != null ? storedRecipient : bouncedRecipient.emailAddress(),
                 event.source(),
-                null, // original message ID not available from SES
-                PROVIDER,
+                null,
+                event.reportingMta(),
                 event.remoteMta(),
                 event.timestamp(),
                 event.timestamp(),
-                null
+                null,
+                PROVIDER,
+                event.feedbackId()
         );
 
-        bounceEventRepository.save(bounceEvent);
+        try {
+            bounceEventRepository.save(bounceEvent);
+        } catch (DataIntegrityViolationException duplicate) {
+            bounceMetrics.incrementDuplicate();
+            log.debug("SES bounce: concurrent duplicate emailMessageId={}", message.getId());
+            return;
+        }
         bounceMetrics.incrementEvent();
 
-        // Apply bounce policy (provider-message-ID correlation does not authorize state mutation)
-        // The existing BounceApplicationService.apply() will determine if state mutation is allowed
-        boolean tokenCorrelated = false; // SES events don't have bounce tokens
-        bounceApplicationService.apply(message, storedRecipient, classification, tokenCorrelated);
+        if (storedRecipient == null) {
+            log.info(
+                    "SES bounce: recipient not on message emailMessageId={} (no suppression)",
+                    message.getId()
+            );
+            return;
+        }
 
+        bounceApplicationService.apply(message, storedRecipient, classification, FeedbackAuthorization.SES);
         log.info(
-                "SES bounce ingested eventId={} tenantId={} emailMessageId={} recipient={} bounceClass={} failureKind={} action={}",
+                "SES bounce ingested eventId={} tenantId={} emailMessageId={} recipientType={} bounceClass={} failureKind={} authorization=SES",
                 bounceEvent.getId(),
                 tenantId,
                 message.getId(),
-                storedRecipient,
+                recipientType,
                 classification.bounceClass(),
-                classification.failureKind(),
-                classification.dsnAction()
+                classification.failureKind()
         );
     }
 
-    private String findMatchingRecipient(EmailMessageEntity message, String recipient) {
-        // Check if recipient matches the main recipient
-        if (recipient != null && recipient.equalsIgnoreCase(message.getRecipient())) {
-            return message.getRecipient();
+    private boolean isDuplicate(String eventHash, String finalRecipient, String providerEventId) {
+        Optional<BounceEventEntity> byHash = bounceEventRepository.findByEventHash(eventHash);
+        if (byHash.isPresent()) {
+            return true;
         }
-        // Could check additional recipients if the message had multiple recipients
-        // For now, return null if no match
-        return null;
+        if (providerEventId == null || providerEventId.isBlank() || finalRecipient == null) {
+            return false;
+        }
+        return bounceEventRepository
+                .findByProviderAndProviderEventIdAndFinalRecipient(PROVIDER, providerEventId, finalRecipient)
+                .isPresent();
     }
 
-    private BounceClassification mapBounceClassification(SesFeedbackEvent event, SesFeedbackEvent.BouncedRecipient recipient) {
-        // Map SES bounceType to BounceClass
+    private BounceClassification mapBounceClassification(
+            SesFeedbackEvent event,
+            SesFeedbackEvent.BouncedRecipient recipient
+    ) {
         BounceClass bounceClass = mapBounceClass(event.bounceType());
-        
-        // Map SES bounceSubType to BounceFailureKind
         BounceFailureKind failureKind = mapBounceFailureKind(event.bounceSubType());
-        
-        // Map SES action to DsnAction
-        DsnAction dsnAction = DsnAction.fromField(event.action());
-        
-        // Use SES status as statusCode
-        String statusCode = event.status();
-        
-        // Use SES diagnosticCode as diagnosticCode
-        String diagnosticCode = event.diagnosticCode();
-
-        return new BounceClassification(bounceClass, failureKind, dsnAction, statusCode, diagnosticCode);
+        String action = firstNonBlank(recipient.action(), event.action());
+        String statusCode = firstNonBlank(recipient.status(), event.status());
+        String diagnosticCode = firstNonBlank(recipient.diagnosticCode(), event.diagnosticCode());
+        return new BounceClassification(
+                bounceClass,
+                failureKind,
+                DsnAction.fromField(action),
+                statusCode,
+                diagnosticCode
+        );
     }
 
     private BounceClass mapBounceClass(String sesBounceType) {
@@ -206,5 +226,12 @@ public class SesBounceIngestionService {
             case "other" -> BounceFailureKind.UNKNOWN;
             default -> BounceFailureKind.UNKNOWN;
         };
+    }
+
+    private static String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback;
     }
 }
