@@ -19,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 
 /** IP-based protection for unauthenticated credential and tenant-provisioning endpoints. */
 @Component
@@ -39,7 +40,9 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        if (!production) return true;
         if (!"POST".equalsIgnoreCase(request.getMethod())) return true;
+
         String path = request.getRequestURI();
         return !(path.equals("/api/v1/auth/login")
                 || path.equals("/api/v1/auth/register")
@@ -57,7 +60,7 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
             Long count = redis.opsForValue().increment(key);
             if (count != null && count == 1L) redis.expire(key, WINDOW.plusSeconds(30));
             if (count != null && count > limit) {
-                reject(response, HttpServletResponse.SC_TOO_MANY_REQUESTS, "AUTH_RATE_LIMITED", "Too many authentication attempts");
+                reject(response, HttpStatus.TOO_MANY_REQUESTS.value(), "AUTH_RATE_LIMITED", "Too many authentication attempts");
                 return;
             }
         } catch (RuntimeException unavailable) {
@@ -67,7 +70,7 @@ public class AuthenticationRateLimitFilter extends OncePerRequestFilter {
             }
             LocalCounter counter = LOCAL.compute(key, (ignored, current) -> current == null ? new LocalCounter() : current);
             if (counter.count.incrementAndGet() > limit) {
-                reject(response, HttpServletResponse.SC_TOO_MANY_REQUESTS, "AUTH_RATE_LIMITED", "Too many authentication attempts");
+                reject(response, HttpStatus.TOO_MANY_REQUESTS.value(), "AUTH_RATE_LIMITED", "Too many authentication attempts");
                 return;
             }
         }

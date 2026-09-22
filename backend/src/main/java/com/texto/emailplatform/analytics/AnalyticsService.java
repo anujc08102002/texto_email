@@ -45,34 +45,86 @@ public class AnalyticsService {
 
         jdbc.query("""
                 SELECT (created_at AT TIME ZONE 'UTC')::date AS day,
-                       count(*) AS accepted,
-                       count(*) FILTER (WHERE status IN ('SENDING','SENT','DELIVERED','DEFERRED','FAILED','BOUNCED')) AS sent,
-                       count(*) FILTER (WHERE status = 'DELIVERED') AS delivered,
-                       count(*) FILTER (WHERE status = 'DEFERRED') AS deferred,
-                       count(*) FILTER (WHERE status = 'FAILED') AS failed,
-                       count(*) FILTER (WHERE status = 'BOUNCED') AS bounced,
-                       count(*) FILTER (WHERE status = 'SUPPRESSED') AS suppressed
-                FROM email_messages WHERE tenant_id = ? AND created_at >= ? AND created_at < ?
+                    count(*) AS accepted,
+                    count(*) FILTER (WHERE status IN ('SENDING','SENT','DELIVERED','DEFERRED','FAILED','BOUNCED')) AS sent,
+                    count(*) FILTER (WHERE status = 'DELIVERED') AS delivered,
+                    count(*) FILTER (WHERE status = 'DEFERRED') AS deferred,
+                    count(*) FILTER (WHERE status = 'FAILED') AS failed,
+                    count(*) FILTER (WHERE status = 'BOUNCED') AS bounced,
+                    count(*) FILTER (WHERE status = 'SUPPRESSED') AS suppressed
+                FROM email_messages
+                WHERE tenant_id = ? AND created_at >= ? AND created_at < ?
                 GROUP BY day ORDER BY day
                 """, rs -> {
-            long[] values = buckets.computeIfAbsent(rs.getObject("day", LocalDate.class), ignored -> new long[8]);
-            values[0] = rs.getLong("accepted"); values[1] = rs.getLong("sent"); values[2] = rs.getLong("delivered");
-            values[3] = rs.getLong("deferred"); values[4] = rs.getLong("failed"); values[5] = rs.getLong("bounced");
+            long[] values = buckets.computeIfAbsent(
+                    rs.getObject("day", LocalDate.class),
+                    ignored -> new long[8]
+            );
+
+            values[0] = rs.getLong("accepted");
+            values[1] = rs.getLong("sent");
+            values[2] = rs.getLong("delivered");
+            values[3] = rs.getLong("deferred");
+            values[4] = rs.getLong("failed");
+            values[5] = rs.getLong("bounced");
             values[7] = rs.getLong("suppressed");
         }, tenantId, from, to);
-        jdbc.query("""
-                SELECT (created_at AT TIME ZONE 'UTC')::date AS day, count(*) AS complained
-                FROM complaint_events WHERE tenant_id = ? AND created_at >= ? AND created_at < ?
-                GROUP BY day ORDER BY day
-                """, rs -> buckets.computeIfAbsent(rs.getObject("day", LocalDate.class), ignored -> new long[8])[6] = rs.getLong("complained"), tenantId, from, to);
 
+
+        jdbc.query("""
+                SELECT (created_at AT TIME ZONE 'UTC')::date AS day,
+                    count(*) AS complained
+                FROM complaint_events
+                WHERE tenant_id = ? AND created_at >= ? AND created_at < ?
+                GROUP BY day ORDER BY day
+                """, rs -> {
+            LocalDate day = rs.getObject("day", LocalDate.class);
+            long[] values = buckets.computeIfAbsent(day, ignored -> new long[8]);
+            values[6] = rs.getLong("complained");
+        }, tenantId, from, to);
+
+
+        // IMPORTANT: outside both query callbacks
         long[] total = new long[8];
+
         List<AnalyticsResponse.Point> series = buckets.entrySet().stream().map(entry -> {
-            long[] v = entry.getValue(); for (int i = 0; i < v.length; i++) total[i] += v[i];
-            return new AnalyticsResponse.Point(entry.getKey(), v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
+            long[] v = entry.getValue();
+
+            for (int i = 0; i < v.length; i++) {
+                total[i] += v[i];
+            }
+
+            return new AnalyticsResponse.Point(
+                    entry.getKey(),
+                    v[0],
+                    v[1],
+                    v[2],
+                    v[3],
+                    v[4],
+                    v[5],
+                    v[6],
+                    v[7]
+            );
         }).toList();
-        var totals = new AnalyticsResponse.Totals(total[0], total[1], total[2], total[3], total[4], total[5], total[6], total[7]);
-        var rates = new AnalyticsResponse.Rates(rate(total[2], total[0]), rate(total[5], total[0]), rate(total[6], total[0]), rate(total[7], total[0]));
+
+        var totals = new AnalyticsResponse.Totals(
+                total[0],
+                total[1],
+                total[2],
+                total[3],
+                total[4],
+                total[5],
+                total[6],
+                total[7]
+        );
+
+        var rates = new AnalyticsResponse.Rates(
+                rate(total[2], total[0]),
+                rate(total[5], total[0]),
+                rate(total[6], total[0]),
+                rate(total[7], total[0])
+        );
+
         return new AnalyticsResponse(from, to, totals, rates, series);
     }
 
