@@ -1,22 +1,24 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
+  AlertOctagon,
   BarChart3,
   Ban,
   Building2,
   ClipboardList,
   CreditCard,
+  Database,
   FileCode2,
-  Flag,
   Globe,
+  HeartPulse,
+  Inbox,
   KeyRound,
   LayoutDashboard,
   Mail,
   Megaphone,
   MessageSquareWarning,
-  Scale,
   Settings,
   Shield,
-  UserPlus,
   Users,
   Webhook,
 } from "lucide-react";
@@ -79,25 +81,36 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     id: "overview",
     label: "Overview",
     items: [
-      { href: "/admin", label: "Control plane", icon: Shield, keywords: ["home", "ops"] },
-      { href: "/admin/insights", label: "Platform insights", icon: BarChart3, keywords: ["analytics", "fleet"] },
+      { href: "/admin", label: "Dashboard", icon: Shield, keywords: ["home", "ops", "health"] },
+      { href: "/admin/traffic", label: "Traffic", icon: Activity, keywords: ["http", "requests"] },
     ],
   },
   {
-    id: "tenants",
-    label: "Tenants",
+    id: "delivery",
+    label: "Delivery",
     items: [
-      { href: "/admin/tenants", label: "All tenants", icon: Building2, keywords: ["accounts", "customers"] },
-      { href: "/admin/accounts/create", label: "Create account", icon: UserPlus, keywords: ["register", "provision"] },
+      { href: "/admin/emails", label: "Email explorer", icon: Mail, keywords: ["messages", "delivery"] },
+      { href: "/admin/bounces", label: "Bounces", icon: AlertOctagon, keywords: ["dsn", "failed"] },
+      { href: "/admin/complaints", label: "Complaints", icon: MessageSquareWarning, keywords: ["feedback", "abuse"] },
+      { href: "/admin/suppressions", label: "Suppressions", icon: Ban, keywords: ["blocked", "recipients"] },
     ],
   },
   {
-    id: "operations",
-    label: "Operations",
+    id: "directory",
+    label: "Directory",
     items: [
-      { href: "/admin/billing", label: "Billing ops", icon: CreditCard, keywords: ["dunning", "invoices"] },
-      { href: "/admin/messages", label: "Messages", icon: MessageSquareWarning, keywords: ["notify", "email"] },
-      { href: "/admin/compliance", label: "Compliance", icon: Scale, keywords: ["abuse", "spam"] },
+      { href: "/admin/tenants", label: "Tenants", icon: Building2, keywords: ["accounts", "customers"] },
+      { href: "/admin/domains", label: "Domains", icon: Globe, keywords: ["dns", "spf", "dkim", "dmarc"] },
+      { href: "/admin/webhooks", label: "Webhooks", icon: Webhook, keywords: ["events", "delivery"] },
+    ],
+  },
+  {
+    id: "infrastructure",
+    label: "Infrastructure",
+    items: [
+      { href: "/admin/queues", label: "Queues", icon: Inbox, keywords: ["rabbitmq", "outbox", "dlq"] },
+      { href: "/admin/system", label: "System", icon: HeartPulse, keywords: ["health", "redis", "postgres", "ses"] },
+      { href: "/admin/database", label: "Data explorer", icon: Database, keywords: ["read only", "datasets"] },
     ],
   },
   {
@@ -105,7 +118,6 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     label: "Governance",
     items: [
       { href: "/admin/audit", label: "Audit log", icon: ClipboardList, keywords: ["history"] },
-      { href: "/admin/platform", label: "Platform controls", icon: Flag, keywords: ["flags", "maintenance"] },
     ],
   },
 ];

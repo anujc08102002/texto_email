@@ -1,5 +1,6 @@
 package com.texto.emailplatform.outbox;
 
+import com.texto.emailplatform.common.observability.RequestCorrelation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -50,6 +51,15 @@ public class OutboxEventEntity {
     @Column(name = "last_error")
     private String lastError;
 
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
+    @Column(name = "request_id", length = 128)
+    private String requestId;
+
+    @Column(name = "trace_id", length = 128)
+    private String traceId;
+
     public static OutboxEventEntity create(
             UUID tenantId,
             String aggregateType,
@@ -64,6 +74,15 @@ public class OutboxEventEntity {
         entity.aggregateId = aggregateId;
         entity.eventType = eventType;
         entity.payload = payload == null ? new LinkedHashMap<>() : new LinkedHashMap<>(payload);
+        RequestCorrelation.putInto(entity.payload);
+        entity.requestId = RequestCorrelation.fromPayload(entity.payload, RequestCorrelation.PAYLOAD_REQUEST_ID);
+        entity.traceId = RequestCorrelation.fromPayload(entity.payload, RequestCorrelation.PAYLOAD_TRACE_ID);
+        if (entity.requestId == null) {
+            entity.requestId = RequestCorrelation.requestId();
+        }
+        if (entity.traceId == null) {
+            entity.traceId = RequestCorrelation.traceId();
+        }
         entity.createdAt = Instant.now();
         entity.attempts = 0;
         return entity;
@@ -72,11 +91,19 @@ public class OutboxEventEntity {
     public void markPublished() {
         this.publishedAt = Instant.now();
         this.lastError = null;
+        this.nextAttemptAt = null;
     }
 
-    public void recordPublishFailure(String error) {
+    public void recordPublishFailure(String error, Instant nextAttemptAt) {
         this.attempts++;
         this.lastError = error == null ? null : (error.length() <= 2000 ? error : error.substring(0, 2000));
+        this.nextAttemptAt = nextAttemptAt;
+    }
+
+    public void markDiscarded(String reason) {
+        this.publishedAt = Instant.now();
+        this.lastError = reason;
+        this.nextAttemptAt = null;
     }
 
     public UUID getId() {
@@ -117,5 +144,17 @@ public class OutboxEventEntity {
 
     public String getLastError() {
         return lastError;
+    }
+
+    public Instant getNextAttemptAt() {
+        return nextAttemptAt;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public String getTraceId() {
+        return traceId;
     }
 }

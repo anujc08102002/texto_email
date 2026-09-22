@@ -137,6 +137,7 @@ public class SesBounceIngestionService {
                 PROVIDER,
                 event.feedbackId()
         );
+        bounceEvent.attachTrafficCorrelation(message.getRequestId(), message.getTraceId());
 
         try {
             bounceEventRepository.save(bounceEvent);

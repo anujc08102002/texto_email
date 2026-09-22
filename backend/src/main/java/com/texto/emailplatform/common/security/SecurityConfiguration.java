@@ -3,9 +3,13 @@ package com.texto.emailplatform.common.security;
 import com.texto.emailplatform.auth.security.ApiKeyAuthenticationFilter;
 import com.texto.emailplatform.auth.security.DashboardSessionAuthenticationFilter;
 import com.texto.emailplatform.common.config.EmailPlatformProperties;
+import com.texto.emailplatform.ops.OpsAuditFilter;
+import com.texto.emailplatform.ops.security.OpsAdminAccessFilter;
+import com.texto.emailplatform.ops.security.PlatformAdminAuthenticationFilter;
 import com.texto.emailplatform.tenant.web.TenantContextFilter;
 import java.util.Arrays;
 import java.util.List;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -16,6 +20,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -28,23 +33,32 @@ public class SecurityConfiguration {
     private final JsonAuthenticationEntryPoint authenticationEntryPoint;
     private final JsonAccessDeniedHandler accessDeniedHandler;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+    private final PlatformAdminAuthenticationFilter platformAdminAuthenticationFilter;
     private final DashboardSessionAuthenticationFilter dashboardSessionAuthenticationFilter;
     private final TenantContextFilter tenantContextFilter;
+    private final OpsAdminAccessFilter opsAdminAccessFilter;
+    private final OpsAuditFilter opsAuditFilter;
 
     public SecurityConfiguration(
             EmailPlatformProperties properties,
             JsonAuthenticationEntryPoint authenticationEntryPoint,
             JsonAccessDeniedHandler accessDeniedHandler,
             ApiKeyAuthenticationFilter apiKeyAuthenticationFilter,
+            PlatformAdminAuthenticationFilter platformAdminAuthenticationFilter,
             DashboardSessionAuthenticationFilter dashboardSessionAuthenticationFilter,
-            TenantContextFilter tenantContextFilter
+            TenantContextFilter tenantContextFilter,
+            OpsAdminAccessFilter opsAdminAccessFilter,
+            OpsAuditFilter opsAuditFilter
     ) {
         this.properties = properties;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
         this.apiKeyAuthenticationFilter = apiKeyAuthenticationFilter;
+        this.platformAdminAuthenticationFilter = platformAdminAuthenticationFilter;
         this.dashboardSessionAuthenticationFilter = dashboardSessionAuthenticationFilter;
         this.tenantContextFilter = tenantContextFilter;
+        this.opsAdminAccessFilter = opsAdminAccessFilter;
+        this.opsAuditFilter = opsAuditFilter;
     }
 
     @Bean
@@ -52,6 +66,12 @@ public class SecurityConfiguration {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
+                .headers(headers -> headers
+                        .contentTypeOptions(Customizer.withDefaults())
+                        .frameOptions(frame -> frame.deny())
+                        .referrerPolicy(referrer -> referrer.policy(
+                                ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'")))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)
@@ -62,6 +82,7 @@ public class SecurityConfiguration {
                             .requestMatchers("/api/v1/status").permitAll()
                             .requestMatchers("/api/v1/plans", "/api/v1/plans/**").permitAll()
                             .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/api/v1/admin/auth/login").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/v1/billing/config").permitAll()
                             .requestMatchers(HttpMethod.POST, "/api/v1/billing/webhooks/razorpay").permitAll();
                     if (properties.getSecurity().isApiDocsPublic()) {
@@ -73,12 +94,38 @@ public class SecurityConfiguration {
                             .anyRequest().denyAll();
                 })
                 .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(dashboardSessionAuthenticationFilter, ApiKeyAuthenticationFilter.class)
+                .addFilterAfter(platformAdminAuthenticationFilter, ApiKeyAuthenticationFilter.class)
+                .addFilterAfter(dashboardSessionAuthenticationFilter, PlatformAdminAuthenticationFilter.class)
                 .addFilterAfter(tenantContextFilter, DashboardSessionAuthenticationFilter.class)
+                .addFilterAfter(opsAdminAccessFilter, TenantContextFilter.class)
+                .addFilterAfter(opsAuditFilter, OpsAdminAccessFilter.class)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable);
         return http.build();
+    }
+
+    @Bean
+    FilterRegistrationBean<PlatformAdminAuthenticationFilter> platformAdminAuthenticationFilterRegistration(
+            PlatformAdminAuthenticationFilter filter
+    ) {
+        return disabled(filter);
+    }
+
+    @Bean
+    FilterRegistrationBean<OpsAdminAccessFilter> opsAdminAccessFilterRegistration(OpsAdminAccessFilter filter) {
+        return disabled(filter);
+    }
+
+    @Bean
+    FilterRegistrationBean<OpsAuditFilter> opsAuditFilterRegistration(OpsAuditFilter filter) {
+        return disabled(filter);
+    }
+
+    private static <T extends jakarta.servlet.Filter> FilterRegistrationBean<T> disabled(T filter) {
+        FilterRegistrationBean<T> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

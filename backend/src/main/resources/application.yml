@@ -72,6 +72,12 @@ email-platform:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
   security:
     api-docs-public: ${API_DOCS_PUBLIC:false}
+  ops:
+    bootstrap-email: ${OPS_BOOTSTRAP_EMAIL:}
+    bootstrap-password: ${OPS_BOOTSTRAP_PASSWORD:}
+  observability:
+    http-audit-retention-days: ${HTTP_AUDIT_RETENTION_DAYS:90}
+    http-audit-purge-cron: ${HTTP_AUDIT_PURGE_CRON:0 25 3 * * *}
   mailpit:
     host: ${MAILPIT_HOST:localhost}
     smtp-port: ${MAILPIT_SMTP_PORT:1025}

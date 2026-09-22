@@ -22,6 +22,7 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,7 @@ public class WebhookDeliveryWorker {
     private final WebhookConfigRepository webhookConfigRepository;
     private final WebhookSigner webhookSigner;
     private final WebhookSecretProtector webhookSecretProtector;
+    private final WebhookUrlValidator webhookUrlValidator;
     private final EmailPlatformProperties properties;
     private final ObjectMapper objectMapper;
     private final RabbitTemplate rabbitTemplate;
@@ -45,6 +47,7 @@ public class WebhookDeliveryWorker {
             WebhookConfigRepository webhookConfigRepository,
             WebhookSigner webhookSigner,
             WebhookSecretProtector webhookSecretProtector,
+            WebhookUrlValidator webhookUrlValidator,
             EmailPlatformProperties properties,
             ObjectMapper objectMapper,
             RabbitTemplate rabbitTemplate
@@ -53,6 +56,7 @@ public class WebhookDeliveryWorker {
         this.webhookConfigRepository = webhookConfigRepository;
         this.webhookSigner = webhookSigner;
         this.webhookSecretProtector = webhookSecretProtector;
+        this.webhookUrlValidator = webhookUrlValidator;
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.rabbitTemplate = rabbitTemplate;
@@ -85,11 +89,6 @@ public class WebhookDeliveryWorker {
             return;
         }
         if (event.getNextAttemptAt() != null && Instant.now().isBefore(event.getNextAttemptAt())) {
-            rabbitTemplate.convertAndSend(
-                    WebhookQueues.WEBHOOK_EXCHANGE,
-                    WebhookQueues.DELIVERY_ROUTING_KEY,
-                    event.getId().toString()
-            );
             return;
         }
 
@@ -111,7 +110,8 @@ public class WebhookDeliveryWorker {
             long timestamp = Instant.now().getEpochSecond();
             String signature = webhookSigner.sign(secret, timestamp, body);
 
-            HttpRequest request = HttpRequest.newBuilder(URI.create(config.getUrl()))
+            String deliveryUrl = webhookUrlValidator.validate(config.getUrl());
+            HttpRequest request = HttpRequest.newBuilder(URI.create(deliveryUrl))
                     .timeout(Duration.ofMillis(properties.getWebhooks().getReadTimeoutMs()))
                     .header("Content-Type", "application/json")
                     .header("Webhook-Id", event.getId().toString())
@@ -129,7 +129,7 @@ public class WebhookDeliveryWorker {
             }
             handleFailure(event, code, "HTTP " + code);
         } catch (Exception exception) {
-            handleFailure(event, null, exception.getMessage() == null ? "network error" : exception.getMessage());
+            handleFailure(event, null, "Delivery failed");
         }
     }
 
@@ -143,11 +143,6 @@ public class WebhookDeliveryWorker {
             Instant next = Instant.now().plusSeconds(backoffSeconds(event.getAttemptCount()) + jitterSeconds());
             event.markRetrying(responseCode == null ? 0 : responseCode, error, next);
             webhookEventRepository.save(event);
-            rabbitTemplate.convertAndSend(
-                    WebhookQueues.WEBHOOK_EXCHANGE,
-                    WebhookQueues.DELIVERY_ROUTING_KEY,
-                    event.getId().toString()
-            );
             return;
         }
         event.markFailed(responseCode, error);
@@ -157,6 +152,17 @@ public class WebhookDeliveryWorker {
                 WebhookQueues.DLQ_ROUTING_KEY,
                 event.getId().toString()
         );
+    }
+
+    @Scheduled(fixedDelayString = "${email-platform.webhooks.retry-poll-ms:1000}")
+    public void publishDueRetries() {
+        webhookEventRepository.findByStatusAndNextAttemptAtLessThanEqual(
+                WebhookEventEntity.STATUS_RETRYING, Instant.now()
+        ).stream().limit(100).forEach(event -> rabbitTemplate.convertAndSend(
+                WebhookQueues.WEBHOOK_EXCHANGE,
+                WebhookQueues.DELIVERY_ROUTING_KEY,
+                event.getId().toString()
+        ));
     }
 
     private static long backoffSeconds(int attemptCount) {

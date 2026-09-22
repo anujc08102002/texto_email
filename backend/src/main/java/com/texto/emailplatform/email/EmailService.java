@@ -1,8 +1,10 @@
 package com.texto.emailplatform.email;
 
 import com.texto.emailplatform.auth.security.DashboardPrincipal;
+import com.texto.emailplatform.auth.security.ApiKeyPrincipal;
 import com.texto.emailplatform.common.config.EmailPlatformProperties;
 import com.texto.emailplatform.common.exception.ApiException;
+import com.texto.emailplatform.common.observability.RequestCorrelation;
 import com.texto.emailplatform.common.security.Permission;
 import com.texto.emailplatform.common.security.RolePermissions;
 import com.texto.emailplatform.common.security.SecuritySupport;
@@ -20,6 +22,7 @@ import com.texto.emailplatform.email.domain.EmailMessageRepository;
 import com.texto.emailplatform.entitlement.EntitlementService;
 import com.texto.emailplatform.outbox.OutboxEventEntity;
 import com.texto.emailplatform.outbox.OutboxService;
+import com.texto.emailplatform.observability.HttpRequestAuditAttributes;
 import com.texto.emailplatform.plan.FeatureCodes;
 import com.texto.emailplatform.suppression.EmailNormalizer;
 import com.texto.emailplatform.suppression.SuppressionService;
@@ -48,6 +51,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Async email acceptance API.
@@ -245,12 +250,14 @@ public class EmailService {
                     properties.getEmail().getMaxAttempts(),
                     createdBy
             );
+            suppressed.attachTrafficCorrelation(RequestCorrelation.requestId(), RequestCorrelation.traceId());
             suppressed.markSuppressed("suppressed_recipient");
             try {
                 suppressed = emailMessageRepository.save(suppressed);
             } catch (DataIntegrityViolationException exception) {
                 return refetchIdempotent(tenantId, normalizedKey, exception);
             }
+            recordEmailAudit(suppressed, "EMAIL_SUPPRESSED");
             webhookEventPublisher.publishEmailEvent(WebhookEventTypes.EMAIL_SUPPRESSED, suppressed);
             return toResponse(suppressed);
         }
@@ -277,12 +284,14 @@ public class EmailService {
                     properties.getEmail().getMaxAttempts(),
                     createdBy
             );
+            message.attachTrafficCorrelation(RequestCorrelation.requestId(), RequestCorrelation.traceId());
             try {
                 message = emailMessageRepository.save(message);
             } catch (DataIntegrityViolationException exception) {
                 emailSendRateLimiter.refund(rateLimitLease);
                 return refetchIdempotent(tenantId, normalizedKey, exception);
             }
+            recordEmailAudit(message, "EMAIL_SEND");
 
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("messageId", message.getId().toString());
@@ -308,6 +317,7 @@ public class EmailService {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
         UUID tenantId = requireTenantId();
+        authorizeRead();
         String statusFilter = blankToNull(status);
         String query = blankToNull(q);
         PageRequest pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -331,6 +341,7 @@ public class EmailService {
 
     @Transactional(readOnly = true)
     public List<EmailMessageResponse> listRecent() {
+        authorizeRead();
         return emailMessageRepository.findTop50ByTenantIdOrderByCreatedAtDesc(requireTenantId()).stream()
                 .map(EmailService::toResponse)
                 .toList();
@@ -338,6 +349,7 @@ public class EmailService {
 
     @Transactional(readOnly = true)
     public EmailMessageDetailResponse get(UUID messageId) {
+        authorizeRead();
         EmailMessageEntity entity = emailMessageRepository.findByIdAndTenantId(messageId, requireTenantId())
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.NOT_FOUND.value(),
@@ -418,6 +430,20 @@ public class EmailService {
         return value.trim();
     }
 
+    private static void recordEmailAudit(EmailMessageEntity message, String operationType) {
+        if (message == null) {
+            return;
+        }
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            HttpRequestAuditAttributes.recordEmailOperation(
+                    attributes.getRequest(),
+                    message.getId(),
+                    message.getProviderMessageId(),
+                    operationType
+            );
+        }
+    }
+
     private void authorizeSend(UUID tenantId) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         var dashboard = SecuritySupport.dashboardPrincipal(authentication);
@@ -425,6 +451,14 @@ public class EmailService {
             DashboardPrincipal principal = dashboard.get();
             if (!RolePermissions.has(principal.role(), Permission.EMAIL_SEND)) {
                 throw new ApiException(HttpStatus.FORBIDDEN.value(), "FORBIDDEN", "Access is denied");
+            }
+        }
+        if (authentication != null && authentication.getPrincipal() instanceof ApiKeyPrincipal apiKey) {
+            if (!apiKey.hasScope("email:send")) {
+                throw new ApiException(HttpStatus.FORBIDDEN.value(), "API_KEY_SCOPE_REQUIRED", "API key requires email:send scope");
+            }
+            if ("TEST".equals(apiKey.environment()) && "ses".equalsIgnoreCase(properties.getMta().getImplementation())) {
+                throw new ApiException(HttpStatus.FORBIDDEN.value(), "TEST_KEY_LIVE_DELIVERY_FORBIDDEN", "TEST API keys cannot use the live SES delivery path");
             }
         }
         if (entitlementService.hasFeature(tenantId, FeatureCodes.API_SENDING)) {
@@ -435,6 +469,18 @@ public class EmailService {
                         "API sending is not available for the current subscription"
                 );
             }
+        }
+    }
+
+    private void authorizeRead() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof DashboardPrincipal dashboard
+                && !RolePermissions.has(dashboard.role(), Permission.EMAIL_READ)) {
+            throw new ApiException(HttpStatus.FORBIDDEN.value(), "FORBIDDEN", "Access is denied");
+        }
+        if (authentication != null && authentication.getPrincipal() instanceof ApiKeyPrincipal apiKey
+                && !apiKey.hasScope("email:read")) {
+            throw new ApiException(HttpStatus.FORBIDDEN.value(), "API_KEY_SCOPE_REQUIRED", "API key requires email:read scope");
         }
     }
 

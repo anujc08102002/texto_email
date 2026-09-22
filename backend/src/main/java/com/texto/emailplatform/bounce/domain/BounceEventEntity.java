@@ -91,6 +91,12 @@ public class BounceEventEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "request_id", length = 128)
+    private String requestId;
+
+    @Column(name = "trace_id", length = 128)
+    private String traceId;
+
     public static BounceEventEntity create(
             UUID tenantId,
             UUID emailMessageId,
@@ -187,6 +193,11 @@ public class BounceEventEntity {
         entity.receivedAt = now;
         entity.createdAt = now;
         return entity;
+    }
+
+    public void attachTrafficCorrelation(String requestId, String traceId) {
+        this.requestId = clip(requestId, 128);
+        this.traceId = clip(traceId, 128);
     }
 
     private static String clip(String value, int max) {
@@ -291,5 +302,13 @@ public class BounceEventEntity {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public String getTraceId() {
+        return traceId;
     }
 }

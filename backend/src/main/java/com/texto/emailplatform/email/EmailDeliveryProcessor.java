@@ -88,7 +88,13 @@ public class EmailDeliveryProcessor {
         if (attemptEntity == null) {
             message.incrementAttempt();
             emailMessageRepository.save(message);
-            attemptEntity = deliveryAttemptRepository.save(DeliveryAttemptEntity.start(messageId, tenantId, attempt));
+            attemptEntity = deliveryAttemptRepository.save(DeliveryAttemptEntity.start(
+                    messageId,
+                    tenantId,
+                    attempt,
+                    message.getRequestId(),
+                    message.getTraceId()
+            ));
         }
 
         if (!DeliveryAttemptEntity.STARTED.equals(attemptEntity.getStatus())) {

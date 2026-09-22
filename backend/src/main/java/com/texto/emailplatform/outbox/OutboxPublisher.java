@@ -4,9 +4,9 @@ import com.texto.emailplatform.queue.EmailQueuePublisher;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +28,7 @@ public class OutboxPublisher {
     @Scheduled(fixedDelayString = "${email-platform.email.outbox-poll-ms:500}")
     @Transactional
     public void publishPending() {
-        List<OutboxEventEntity> events = outboxEventRepository.findUnpublished(PageRequest.of(0, BATCH_SIZE));
+        List<OutboxEventEntity> events = outboxEventRepository.lockPublishable(Instant.now(), BATCH_SIZE);
         for (OutboxEventEntity event : events) {
             try {
                 publishEvent(event);
@@ -36,7 +36,8 @@ public class OutboxPublisher {
                 outboxEventRepository.save(event);
             } catch (Exception exception) {
                 log.warn("Failed to publish outbox event {}", event.getId());
-                event.recordPublishFailure(exception.getMessage());
+                long delaySeconds = Math.min(3600L, 1L << Math.min(event.getAttempts(), 11));
+                event.recordPublishFailure("Publish failed", Instant.now().plusSeconds(delaySeconds));
                 outboxEventRepository.save(event);
             }
         }
@@ -50,9 +51,10 @@ public class OutboxPublisher {
             int attempt = payload.get("attempt") instanceof Number number
                     ? number.intValue()
                     : Integer.parseInt(String.valueOf(payload.get("attempt")));
-            emailQueuePublisher.publishDelivery(messageId, tenantId, attempt);
+            emailQueuePublisher.publishDelivery(messageId, tenantId, attempt, event.getRequestId(), event.getTraceId());
             return;
         }
         log.warn("Unknown outbox event type {}", event.getEventType());
+        event.markDiscarded("Unsupported event type");
     }
 }

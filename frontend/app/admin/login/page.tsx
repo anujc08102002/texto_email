@@ -101,8 +101,7 @@ export default function AdminLoginPage() {
             </Alert>
           ) : null}
           <p className="mt-8 text-[11px] text-muted-foreground">
-            Credentials are configured via <code className="font-mono">ADMIN_EMAIL</code> /{" "}
-            <code className="font-mono">ADMIN_PASSWORD</code> in the frontend environment.
+            Authentication is handled by the secured platform-admin API. Workspace credentials cannot access this console.
           </p>
         </div>
       </div>

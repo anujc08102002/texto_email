@@ -1,5 +1,2 @@
-import { AdminAuditScreen } from "@/components/admin/admin-audit-screen";
-
-export default function AdminAuditPage() {
-  return <AdminAuditScreen />;
-}
+import { AdminCatalogScreen } from "@/components/admin/admin-catalog-screen";
+export default function Page() { return <AdminCatalogScreen kind="audit" />; }

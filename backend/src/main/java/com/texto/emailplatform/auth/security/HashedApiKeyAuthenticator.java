@@ -21,7 +21,7 @@ public class HashedApiKeyAuthenticator implements ApiKeyAuthenticator {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public Optional<ApiKeyPrincipal> authenticate(String rawApiKey) {
         if (rawApiKey == null || rawApiKey.isBlank()) {
             return Optional.empty();
@@ -29,11 +29,17 @@ public class HashedApiKeyAuthenticator implements ApiKeyAuthenticator {
         String hash = sha256(rawApiKey.trim());
         return apiKeyRepository.findByKeyHashAndStatus(hash, ApiKeyEntity.STATUS_ACTIVE)
                 .filter(ApiKeyEntity::isActive)
-                .map(this::toPrincipal);
+                .map(entity -> {
+                    if (entity.getLastUsedAt() == null || entity.getLastUsedAt().isBefore(java.time.Instant.now().minusSeconds(300))) {
+                        entity.markUsed();
+                        apiKeyRepository.save(entity);
+                    }
+                    return toPrincipal(entity);
+                });
     }
 
     private ApiKeyPrincipal toPrincipal(ApiKeyEntity entity) {
-        return new ApiKeyPrincipal(entity.getId(), entity.getTenantId(), entity.getKeyPrefix());
+        return new ApiKeyPrincipal(entity.getId(), entity.getTenantId(), entity.getKeyPrefix(), entity.getEnvironment(), entity.getScopes());
     }
 
     public static String sha256(String value) {

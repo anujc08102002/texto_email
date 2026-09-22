@@ -4,10 +4,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface SuppressionRepository extends JpaRepository<SuppressionEntity, UUID> {
+public interface SuppressionRepository
+        extends JpaRepository<SuppressionEntity, UUID>, JpaSpecificationExecutor<SuppressionEntity> {
 
     Optional<SuppressionEntity> findByTenantIdAndNormalizedEmail(UUID tenantId, String normalizedEmail);
 
@@ -27,4 +29,6 @@ public interface SuppressionRepository extends JpaRepository<SuppressionEntity, 
             @Param("type") String type,
             @Param("search") String search
     );
+
+    List<SuppressionEntity> findByMessageIdOrderByCreatedAtAsc(UUID messageId);
 }

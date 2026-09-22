@@ -43,7 +43,7 @@ export function BillingOverview({ plans }: { plans: Plan[] }) {
 
   useEffect(() => {
     let cancelled = false;
-    refresh()
+    Promise.resolve().then(refresh)
       .catch((cause) => {
         if (!cancelled) {
           setError(cause instanceof ApiClientError ? cause.message : "Unable to load billing data.");

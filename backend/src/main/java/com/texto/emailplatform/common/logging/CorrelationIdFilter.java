@@ -1,13 +1,11 @@
 package com.texto.emailplatform.common.logging;
 
-import com.texto.emailplatform.common.api.RequestIdHolder;
+import com.texto.emailplatform.common.observability.RequestCorrelation;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.UUID;
-import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -23,21 +21,21 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        String requestId = resolveRequestId(request);
-        MDC.put(RequestIdHolder.MDC_KEY, requestId);
-        response.setHeader(RequestIdHolder.HEADER, requestId);
+        String requestId = RequestCorrelation.resolveRequestId(request.getHeader(RequestCorrelation.REQUEST_ID_HEADER));
+        String traceId = RequestCorrelation.resolveTraceId(
+                request.getHeader(RequestCorrelation.TRACE_ID_HEADER),
+                request.getHeader(RequestCorrelation.TRACEPARENT_HEADER),
+                requestId
+        );
+        RequestCorrelation.bind(requestId, traceId);
+        response.setHeader(RequestCorrelation.REQUEST_ID_HEADER, requestId);
+        if (traceId != null) {
+            response.setHeader(RequestCorrelation.TRACE_ID_HEADER, traceId);
+        }
         try {
             filterChain.doFilter(request, response);
         } finally {
-            MDC.remove(RequestIdHolder.MDC_KEY);
+            RequestCorrelation.clear();
         }
-    }
-
-    private String resolveRequestId(HttpServletRequest request) {
-        String incoming = request.getHeader(RequestIdHolder.HEADER);
-        if (incoming == null || incoming.isBlank() || incoming.length() > 128) {
-            return UUID.randomUUID().toString();
-        }
-        return incoming.trim();
     }
 }

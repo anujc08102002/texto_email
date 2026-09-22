@@ -8,5 +8,7 @@ public interface DomainVerificationRecordRepository extends JpaRepository<Domain
 
     List<DomainVerificationRecordEntity> findByDomainIdOrderByTypeAsc(UUID domainId);
 
+    List<DomainVerificationRecordEntity> findByDomainIdInOrderByTypeAsc(List<UUID> domainIds);
+
     void deleteByDomainId(UUID domainId);
 }

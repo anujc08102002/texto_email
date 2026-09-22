@@ -19,6 +19,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class ApiKeyService {
     static final String ENVIRONMENT_TEST = "TEST";
     static final String ENVIRONMENT_LIVE = "LIVE";
     private static final int PREFIX_LENGTH = 12;
+    private static final Set<String> ALLOWED_SCOPES = Set.of("email:send", "email:read");
 
     private final ApiKeyRepository apiKeyRepository;
     private final EntitlementService entitlementService;
@@ -72,6 +74,7 @@ public class ApiKeyService {
                 secret.substring(0, PREFIX_LENGTH),
                 HashedApiKeyAuthenticator.sha256(secret),
                 environment,
+                normalizeScopes(request.scopes()),
                 request.expiresAt()
         ));
         usageService.recordUsage(tenantId, UsageMetrics.API_KEYS, activeKeys + 1);
@@ -107,6 +110,24 @@ public class ApiKeyService {
                 apiKeyRepository.countByTenantIdAndStatus(tenantId, ApiKeyEntity.STATUS_ACTIVE)
         );
         return toResponse(entity);
+    }
+
+    @Transactional
+    public CreatedApiKeyResponse rotate(DashboardPrincipal principal, UUID apiKeyId) {
+        permissionAuthorizationManager.requirePermission(principal, Permission.API_KEY_CREATE);
+        permissionAuthorizationManager.requirePermission(principal, Permission.API_KEY_REVOKE);
+        ApiKeyEntity current = requireOwnedKey(apiKeyId);
+        if (!current.isActive()) {
+            throw new ApiException(HttpStatus.CONFLICT.value(), "API_KEY_NOT_ACTIVE", "Only an active API key can be rotated");
+        }
+        String secret = generateSecret(current.getEnvironment());
+        ApiKeyEntity replacement = apiKeyRepository.save(ApiKeyEntity.create(
+                current.getTenantId(), current.getName(), secret.substring(0, PREFIX_LENGTH),
+                HashedApiKeyAuthenticator.sha256(secret), current.getEnvironment(), current.getScopes(), current.getExpiresAt()
+        ));
+        current.revoke();
+        apiKeyRepository.save(current);
+        return new CreatedApiKeyResponse(toResponse(replacement), secret);
     }
 
     private ApiKeyEntity requireOwnedKey(UUID apiKeyId) {
@@ -149,6 +170,14 @@ public class ApiKeyService {
         return "sk_" + scope + "_" + HexFormat.of().formatHex(bytes);
     }
 
+    private static Set<String> normalizeScopes(Set<String> scopes) {
+        Set<String> normalized = scopes == null || scopes.isEmpty() ? ALLOWED_SCOPES : Set.copyOf(scopes);
+        if (!ALLOWED_SCOPES.containsAll(normalized)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR", "Unsupported API key scope");
+        }
+        return normalized;
+    }
+
     private static ApiKeyResponse toResponse(ApiKeyEntity entity) {
         return new ApiKeyResponse(
                 entity.getId(),
@@ -156,6 +185,7 @@ public class ApiKeyService {
                 entity.getKeyPrefix(),
                 entity.getStatus(),
                 entity.getEnvironment(),
+                entity.getScopes(),
                 entity.getCreatedAt(),
                 entity.getLastUsedAt(),
                 entity.getExpiresAt(),

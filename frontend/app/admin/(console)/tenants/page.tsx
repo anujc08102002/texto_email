@@ -1,5 +1,2 @@
-import { AdminTenantsScreen } from "@/components/admin/admin-tenants-screen";
-
-export default function AdminTenantsPage() {
-  return <AdminTenantsScreen />;
-}
+import { AdminCatalogScreen } from "@/components/admin/admin-catalog-screen";
+export default function Page() { return <AdminCatalogScreen kind="tenants" />; }

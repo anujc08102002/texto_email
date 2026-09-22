@@ -1,17 +1,16 @@
 package com.texto.emailplatform.common.api;
 
-import org.slf4j.MDC;
+import com.texto.emailplatform.common.observability.RequestCorrelation;
 
 public final class RequestIdHolder {
 
-    public static final String HEADER = "X-Request-Id";
-    public static final String MDC_KEY = "requestId";
+    public static final String HEADER = RequestCorrelation.REQUEST_ID_HEADER;
+    public static final String MDC_KEY = RequestCorrelation.REQUEST_ID_MDC;
 
     private RequestIdHolder() {
     }
 
     public static String current() {
-        String value = MDC.get(MDC_KEY);
-        return value == null || value.isBlank() ? "unknown" : value;
+        return RequestCorrelation.requestIdOrUnknown();
     }
 }

@@ -4,8 +4,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID> {
+public interface ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID>, JpaSpecificationExecutor<ApiKeyEntity> {
 
     Optional<ApiKeyEntity> findByKeyHashAndStatus(String keyHash, String status);
 

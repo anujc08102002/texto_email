@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "crypto";
+
+const API_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 export async function POST(request: Request) {
   let body: { email?: string; password?: string };
@@ -11,22 +12,21 @@ export async function POST(request: Request) {
 
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
+  if (!email || !password) return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
 
-  const expectedEmail = (process.env.ADMIN_EMAIL ?? "admin@texto.local").trim().toLowerCase();
-  const expectedPassword = process.env.ADMIN_PASSWORD ?? "AdminTexto1!";
-
-  if (!email || !password || email !== expectedEmail || password !== expectedPassword) {
-    return NextResponse.json({ error: "Invalid admin credentials." }, { status: 401 });
+  try {
+    const upstream = await fetch(`${API_BASE_URL}/api/v1/admin/auth/login`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const payload = await upstream.json() as { success?: boolean; data?: { token: string; admin: { email: string; name: string; role: "PLATFORM_ADMIN" } }; error?: { message?: string } };
+    if (!upstream.ok || !payload.success || !payload.data) {
+      return NextResponse.json({ error: payload.error?.message ?? "Invalid admin credentials." }, { status: upstream.status || 401 });
+    }
+    return NextResponse.json(payload.data);
+  } catch {
+    return NextResponse.json({ error: "Unable to reach the operations API." }, { status: 502 });
   }
-
-  const token = `adm_${randomBytes(24).toString("hex")}`;
-
-  return NextResponse.json({
-    token,
-    admin: {
-      email: expectedEmail,
-      name: "Platform Admin",
-      role: "PLATFORM_ADMIN" as const,
-    },
-  });
 }

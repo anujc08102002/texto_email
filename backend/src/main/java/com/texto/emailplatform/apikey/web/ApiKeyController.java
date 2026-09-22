@@ -56,4 +56,10 @@ public class ApiKeyController {
     public ApiResponse<ApiKeyResponse> revoke(Authentication authentication, @PathVariable UUID apiKeyId) {
         return ApiResponse.ok(apiKeyService.revoke(SecuritySupport.requireDashboardPrincipal(authentication), apiKeyId));
     }
+
+    @PostMapping("/{apiKeyId}/rotate")
+    @Operation(summary = "Atomically replace an API key; the new secret is returned only once")
+    public ApiResponse<CreatedApiKeyResponse> rotate(Authentication authentication, @PathVariable UUID apiKeyId) {
+        return ApiResponse.ok(apiKeyService.rotate(SecuritySupport.requireDashboardPrincipal(authentication), apiKeyId));
+    }
 }

@@ -50,7 +50,23 @@ public class DeliveryAttemptEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "request_id", length = 128)
+    private String requestId;
+
+    @Column(name = "trace_id", length = 128)
+    private String traceId;
+
     public static DeliveryAttemptEntity start(UUID messageId, UUID tenantId, int attemptNumber) {
+        return start(messageId, tenantId, attemptNumber, null, null);
+    }
+
+    public static DeliveryAttemptEntity start(
+            UUID messageId,
+            UUID tenantId,
+            int attemptNumber,
+            String requestId,
+            String traceId
+    ) {
         Instant now = Instant.now();
         DeliveryAttemptEntity entity = new DeliveryAttemptEntity();
         entity.id = UUID.randomUUID();
@@ -60,6 +76,8 @@ public class DeliveryAttemptEntity {
         entity.status = STARTED;
         entity.startedAt = now;
         entity.createdAt = now;
+        entity.requestId = requestId;
+        entity.traceId = traceId;
         return entity;
     }
 
@@ -134,5 +152,13 @@ public class DeliveryAttemptEntity {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public String getTraceId() {
+        return traceId;
     }
 }

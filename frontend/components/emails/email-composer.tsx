@@ -16,8 +16,6 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiClientError } from "@/lib/api";
-import { useStoredUser } from "@/hooks/use-stored-user";
-import { fetchCurrentUser } from "@/services/auth";
 import { listDomains } from "@/services/domains";
 import { getUsage } from "@/services/platform";
 import { sendEmail } from "@/services/emails";
@@ -39,7 +37,6 @@ function escapeHtml(value: string) {
 
 export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
   const router = useRouter();
-  const user = useStoredUser();
   const [from, setFrom] = useState("");
   const [fromOptions, setFromOptions] = useState<string[]>([]);
   const [to, setTo] = useState<string[]>(defaultTo ? [defaultTo] : []);

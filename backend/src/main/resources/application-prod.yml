@@ -12,6 +12,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
 
 management:
   endpoint:
@@ -21,14 +22,15 @@ management:
 
 email-platform:
   ses-feedback:
-    enabled: ${SES_FEEDBACK_ENABLED:false}
-    queue-url: ${SES_FEEDBACK_QUEUE_URL:}
+    enabled: ${SES_FEEDBACK_ENABLED}
+    queue-url: ${SES_FEEDBACK_QUEUE_URL}
     max-messages: ${SES_FEEDBACK_MAX_MESSAGES:10}
     wait-seconds: ${SES_FEEDBACK_WAIT_SECONDS:20}
     visibility-timeout-seconds: ${SES_FEEDBACK_VISIBILITY_TIMEOUT_SECONDS:120}
     poll-ms: ${SES_FEEDBACK_POLL_MS:1000}
   security:
     api-docs-public: false
+    registration-enabled: false
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
   mta:
@@ -49,9 +51,9 @@ email-platform:
       ssl:
         enabled: ${MTA_SMTP_SSL_ENABLED:false}
   ses:
-    enabled: ${SES_ENABLED:false}
+    enabled: ${SES_ENABLED}
     region: ${SES_REGION:ap-south-1}
-    configuration-set-name: ${SES_CONFIGURATION_SET_NAME:}
+    configuration-set-name: ${SES_CONFIGURATION_SET_NAME}
   email:
     max-rfc822-bytes: ${EMAIL_MAX_RFC822_BYTES:10485760}
     rate-limit-per-minute: ${EMAIL_RATE_LIMIT_PER_MINUTE:830}
@@ -63,6 +65,10 @@ email-platform:
     dkim-key-encryption-key: ${DKIM_KEY_ENCRYPTION_KEY}
     spf-authorize-outbound-ip: ${SPF_AUTHORIZE_OUTBOUND_IP:false}
     spf-include-provisioned: ${SPF_INCLUDE_PROVISIONED:false}
+  webhooks:
+    encryption-key: ${WEBHOOKS_ENCRYPTION_KEY}
+  billing:
+    provider: ${BILLING_PROVIDER}
 
 logging:
   structured:

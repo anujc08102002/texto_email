@@ -9,6 +9,8 @@ public class EmailPlatformProperties {
 
     private final Cors cors = new Cors();
     private final Security security = new Security();
+    private final Ops ops = new Ops();
+    private final Observability observability = new Observability();
     private final Mailpit mailpit = new Mailpit();
     private final Mta mta = new Mta();
     private final Ses ses = new Ses();
@@ -26,6 +28,14 @@ public class EmailPlatformProperties {
 
     public Security getSecurity() {
         return security;
+    }
+
+    public Ops getOps() {
+        return ops;
+    }
+
+    public Observability getObservability() {
+        return observability;
     }
 
     public Mailpit getMailpit() {
@@ -80,8 +90,49 @@ public class EmailPlatformProperties {
         }
     }
 
+    public static class Ops {
+        /**
+         * Optional first-admin bootstrap. Applied only when {@code platform_admins} is empty.
+         * Leave blank in production.
+         */
+        private String bootstrapEmail = "";
+        private String bootstrapPassword = "";
+
+        public String getBootstrapEmail() {
+            return bootstrapEmail;
+        }
+
+        public void setBootstrapEmail(String bootstrapEmail) {
+            this.bootstrapEmail = bootstrapEmail;
+        }
+
+        public String getBootstrapPassword() {
+            return bootstrapPassword;
+        }
+
+        public void setBootstrapPassword(String bootstrapPassword) {
+            this.bootstrapPassword = bootstrapPassword;
+        }
+    }
+
+    public static class Observability {
+        /**
+         * Number of days to keep persistent HTTP request audit rows.
+         */
+        private int httpAuditRetentionDays = 90;
+
+        public int getHttpAuditRetentionDays() {
+            return httpAuditRetentionDays;
+        }
+
+        public void setHttpAuditRetentionDays(int httpAuditRetentionDays) {
+            this.httpAuditRetentionDays = httpAuditRetentionDays;
+        }
+    }
+
     public static class Security {
         private boolean apiDocsPublic;
+        private boolean registrationEnabled = true;
 
         public boolean isApiDocsPublic() {
             return apiDocsPublic;
@@ -89,6 +140,14 @@ public class EmailPlatformProperties {
 
         public void setApiDocsPublic(boolean apiDocsPublic) {
             this.apiDocsPublic = apiDocsPublic;
+        }
+
+        public boolean isRegistrationEnabled() {
+            return registrationEnabled;
+        }
+
+        public void setRegistrationEnabled(boolean registrationEnabled) {
+            this.registrationEnabled = registrationEnabled;
         }
     }
 

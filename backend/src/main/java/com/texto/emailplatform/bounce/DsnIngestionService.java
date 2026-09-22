@@ -62,6 +62,7 @@ public class DsnIngestionService {
     private DsnIngestionResult persistParseFailure(DsnIngestionRequest request, ParsedDsn parsed) {
         BounceCorrelation correlation = correlator.correlate(parsed, null, request.envelopeRecipient());
         UUID tenantId = correlation.matched() ? correlation.message().getTenantId() : null;
+        EmailMessageEntity message = correlation.matched() ? correlation.message() : null;
         String hash = BounceEventHash.parseFailure(tenantId, request.rawRfc822());
         Optional<BounceEventEntity> existing = bounceEventRepository.findByEventHash(hash);
         if (existing.isPresent()) {
@@ -89,6 +90,9 @@ public class DsnIngestionService {
                 null,
                 null
         );
+        if (message != null) {
+            entity.attachTrafficCorrelation(message.getRequestId(), message.getTraceId());
+        }
         bounceEventRepository.save(entity);
         bounceMetrics.incrementEvent();
         log.info(
@@ -112,6 +116,7 @@ public class DsnIngestionService {
         for (DsnRecipient recipient : recipients) {
             BounceCorrelation correlation = correlator.correlate(parsed, recipient, request.envelopeRecipient());
             UUID tenantId = correlation.matched() ? correlation.message().getTenantId() : null;
+            EmailMessageEntity message = correlation.matched() ? correlation.message() : null;
             BounceClassification classification = recipient.classification() == null
                     ? BounceClassifier.classify(recipient.action(), recipient.status(), recipient.diagnosticMessage())
                     : recipient.classification();
@@ -152,6 +157,9 @@ public class DsnIngestionService {
                     recipient.lastAttemptDate(),
                     recipient.willRetryUntil()
             );
+            if (message != null) {
+                entity.attachTrafficCorrelation(message.getRequestId(), message.getTraceId());
+            }
             bounceEventRepository.save(entity);
             stored.add(entity);
             created++;

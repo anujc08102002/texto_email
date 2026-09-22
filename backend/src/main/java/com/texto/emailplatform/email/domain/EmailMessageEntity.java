@@ -111,6 +111,12 @@ public class EmailMessageEntity {
     @Column(name = "bounce_correlation_token", length = 32)
     private String bounceCorrelationToken;
 
+    @Column(name = "request_id", length = 128)
+    private String requestId;
+
+    @Column(name = "trace_id", length = 128)
+    private String traceId;
+
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
@@ -384,6 +390,15 @@ public class EmailMessageEntity {
      * Records the RFC 822 Message-ID emitted at compose time. Does not change delivery status.
      * First write wins so retries do not rotate the correlation identifier.
      */
+    public void attachTrafficCorrelation(String requestId, String traceId) {
+        if (this.requestId == null && requestId != null && !requestId.isBlank()) {
+            this.requestId = requestId.length() <= 128 ? requestId : requestId.substring(0, 128);
+        }
+        if (this.traceId == null && traceId != null && !traceId.isBlank()) {
+            this.traceId = traceId.length() <= 128 ? traceId : traceId.substring(0, 128);
+        }
+    }
+
     public void recordRfc822MessageId(String rfc822MessageId) {
         if (this.rfc822MessageId != null || rfc822MessageId == null || rfc822MessageId.isBlank()) {
             return;
@@ -522,6 +537,14 @@ public class EmailMessageEntity {
 
     public String getBounceCorrelationToken() {
         return bounceCorrelationToken;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public String getTraceId() {
+        return traceId;
     }
 
     public int getAttemptCount() {

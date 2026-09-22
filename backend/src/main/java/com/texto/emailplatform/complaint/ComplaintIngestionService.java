@@ -105,6 +105,7 @@ public class ComplaintIngestionService {
 
         ComplaintCorrelation correlation = correlator.correlate(request);
         UUID tenantId = correlation.matched() ? correlation.message().getTenantId() : null;
+        var message = correlation.matched() ? correlation.message() : null;
         String storedRecipient = correlation.matched()
                 ? ComplaintApplicationService.matchingRecipient(correlation.message(), request.recipient())
                 : null;
@@ -145,6 +146,9 @@ public class ComplaintIngestionService {
                 null,
                 request.metadata()
         );
+        if (message != null) {
+            entity.attachTrafficCorrelation(message.getRequestId(), message.getTraceId());
+        }
         try {
             complaintEventRepository.save(entity);
         } catch (DataIntegrityViolationException duplicate) {

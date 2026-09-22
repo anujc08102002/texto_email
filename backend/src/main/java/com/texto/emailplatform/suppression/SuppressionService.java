@@ -74,6 +74,13 @@ public class SuppressionService {
         permissionAuthorizationManager.requirePermission(principal, Permission.SUPPRESSION_MANAGE);
         requireFeature(requireTenantId());
         SuppressionEntity entity = requireOwned(suppressionId);
+        if (SuppressionEntity.TYPE_COMPLAINT.equals(entity.getType())) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT.value(),
+                    "COMPLAINT_SUPPRESSION_PROTECTED",
+                    "Complaint suppressions cannot be removed by a tenant"
+            );
+        }
         suppressionRepository.delete(entity);
     }
 

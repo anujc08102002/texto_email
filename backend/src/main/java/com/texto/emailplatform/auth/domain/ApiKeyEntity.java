@@ -5,6 +5,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -36,6 +39,9 @@ public class ApiKeyEntity {
     @Column(name = "environment", nullable = false, length = 16)
     private String environment;
 
+    @Column(name = "scopes", nullable = false, length = 255)
+    private String scopes;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -54,6 +60,7 @@ public class ApiKeyEntity {
             String keyPrefix,
             String keyHash,
             String environment,
+            Set<String> scopes,
             Instant expiresAt
     ) {
         ApiKeyEntity entity = new ApiKeyEntity();
@@ -64,6 +71,7 @@ public class ApiKeyEntity {
         entity.keyHash = keyHash;
         entity.status = STATUS_ACTIVE;
         entity.environment = environment;
+        entity.scopes = String.join(",", scopes);
         entity.createdAt = Instant.now();
         entity.expiresAt = expiresAt;
         return entity;
@@ -112,6 +120,13 @@ public class ApiKeyEntity {
 
     public String getEnvironment() {
         return environment;
+    }
+
+    public Set<String> getScopes() {
+        if (scopes == null || scopes.isBlank()) {
+            return Set.of();
+        }
+        return new LinkedHashSet<>(Arrays.asList(scopes.split(",")));
     }
 
     public Instant getCreatedAt() {

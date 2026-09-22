@@ -10,6 +10,7 @@ import com.texto.emailplatform.auth.api.RegisterRequest;
 import com.texto.emailplatform.auth.security.DashboardPrincipal;
 import com.texto.emailplatform.common.api.ApiResponse;
 import com.texto.emailplatform.common.exception.ApiException;
+import com.texto.emailplatform.common.config.EmailPlatformProperties;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -29,14 +30,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailPlatformProperties properties;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, EmailPlatformProperties properties) {
         this.authService = authService;
+        this.properties = properties;
     }
 
     @PostMapping("/register")
     @Operation(summary = "Register a tenant and owner account")
     public ApiResponse<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+        if (!properties.getSecurity().isRegistrationEnabled()) {
+            throw new ApiException(HttpStatus.NOT_FOUND.value(), "REGISTRATION_DISABLED", "Registration is not available");
+        }
         return ApiResponse.ok(authService.register(request));
     }
 

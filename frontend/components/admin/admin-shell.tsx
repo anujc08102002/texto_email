@@ -3,7 +3,7 @@
 import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { LogOut, Menu, Search, Shield } from "lucide-react";
 import { motion } from "motion/react";
 import { Brand } from "@/components/layout/brand";
@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAdminSession } from "@/hooks/use-admin-session";
 import { useIsClient } from "@/hooks/use-is-client";
 import { clearAdminSession } from "@/lib/admin-session";
+import { adminGet } from "@/services/admin-ops";
 import { ADMIN_NAV_SECTIONS, getPageMeta, isActiveAdminNavItem } from "@/lib/navigation";
 import { duration, easeOut } from "@/lib/motion/variants";
 import { cn } from "@/lib/utils";
@@ -184,6 +185,7 @@ function AdminFrame({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const admin = useAdminSession();
   const isClient = useIsClient();
+  const [verified, setVerified] = useState(false);
   const { mobileOpen, setMobileOpen } = useShell();
 
   useEffect(() => {
@@ -193,10 +195,23 @@ function AdminFrame({ children }: { children: React.ReactNode }) {
   }, [admin, isClient, router]);
 
   useEffect(() => {
+    if (!isClient || !admin) return;
+    let active = true;
+    adminGet("/api/v1/admin/auth/me").then(() => {
+      if (active) setVerified(true);
+    }).catch(() => {
+      if (!active) return;
+      clearAdminSession();
+      router.replace("/admin/login");
+    });
+    return () => { active = false; };
+  }, [admin, isClient, router]);
+
+  useEffect(() => {
     setMobileOpen(false);
   }, [pathname, setMobileOpen]);
 
-  if (!isClient || !admin) {
+  if (!isClient || !admin || !verified) {
     return <div className="min-h-dvh bg-app" />;
   }
 

@@ -154,8 +154,30 @@ public class DomainService {
         domainRepository.save(entity);
 
         boolean verified = domainVerificationService.verifyRecords(entity);
+        if (verified && domainRepository.existsByDomainIgnoreCaseAndStatusAndTenantIdNot(
+                entity.getDomain(), DomainEntity.STATUS_VERIFIED, tenantId)) {
+            entity.setStatus(DomainEntity.STATUS_FAILED);
+            domainRepository.save(entity);
+            throw new ApiException(
+                    HttpStatus.CONFLICT.value(),
+                    "DOMAIN_OWNERSHIP_CONFLICT",
+                    "This sending domain is already verified by another tenant"
+            );
+        }
         entity.setStatus(verified ? DomainEntity.STATUS_VERIFIED : DomainEntity.STATUS_FAILED);
         return toResponse(domainRepository.save(entity));
+    }
+
+    @Transactional
+    public void reverifyVerifiedDomains() {
+        for (DomainEntity entity : domainRepository.findTop100ByStatusOrderByUpdatedAtAsc(DomainEntity.STATUS_VERIFIED)) {
+            if (PlatformSenderDomains.isPlatformTestDomain(entity.getDomain())) {
+                continue;
+            }
+            boolean verified = domainVerificationService.verifyRecords(entity);
+            entity.setStatus(verified ? DomainEntity.STATUS_VERIFIED : DomainEntity.STATUS_FAILED);
+            domainRepository.save(entity);
+        }
     }
 
     @Transactional
