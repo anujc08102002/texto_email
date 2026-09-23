@@ -152,7 +152,7 @@ email-platform:
     read-timeout-ms: ${WEBHOOKS_READ_TIMEOUT_MS:5000}
     encryption-key: ${WEBHOOKS_ENCRYPTION_KEY:}
   billing:
-    provider: ${BILLING_PROVIDER:noop}
+    provider: ${BILLING_PROVIDER:razorpay}
     grace-period-days: ${BILLING_GRACE_PERIOD_DAYS:3}
     razorpay:
       key-id: ${RAZORPAY_KEY_ID:}

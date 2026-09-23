@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -34,6 +35,7 @@ public class RazorpayClient {
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
 
+    @Autowired
     public RazorpayClient(EmailPlatformProperties platformProperties, ObjectMapper objectMapper) {
         this(platformProperties.getBilling().getRazorpay(), objectMapper, defaultRestClient());
     }
