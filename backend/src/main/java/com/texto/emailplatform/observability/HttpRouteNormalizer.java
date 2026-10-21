@@ -19,6 +19,7 @@ public final class HttpRouteNormalizer {
             return "/";
         }
         String path = uri.split("\\?", 2)[0];
+        if (path.startsWith("/api/v1/public/unsubscribe/")) return "/api/v1/public/unsubscribe/{token}";
         String[] parts = path.split("/");
         StringBuilder builder = new StringBuilder();
         for (String part : parts) {

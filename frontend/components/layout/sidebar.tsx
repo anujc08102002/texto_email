@@ -1,186 +1,43 @@
 "use client";
 
-import type { ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PanelLeftClose, PanelLeftOpen, PenLine } from "lucide-react";
-import { Brand } from "@/components/layout/brand";
-import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useShell } from "@/components/layout/shell-context";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { isActiveNavItem, NAV_SECTIONS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
-import { useStoredUser } from "@/hooks/use-stored-user";
 
-function NavLink({
-  href,
-  label,
-  icon: Icon,
-  collapsed,
-  onNavigate,
-}: {
-  href: string;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  collapsed: boolean;
-  onNavigate?: () => void;
-}) {
-  const pathname = usePathname();
-  const active = isActiveNavItem(pathname, href);
-
-  const link = (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-all duration-300 ease-out",
-        collapsed && "justify-center px-0",
-        active
-          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm scale-[1.02]"
-          : "text-sidebar-foreground/72 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground hover:translate-x-1 hover:scale-[1.02]",
-      )}
-    >
-      {active ? (
-        <span className="absolute inset-y-1.5 left-0 w-[2.5px] rounded-full bg-sidebar-primary shadow-glow animate-pulse" aria-hidden />
-      ) : null}
-      <Icon
-        className={cn(
-          "size-4 shrink-0 transition-all duration-300 ease-out",
-          active 
-            ? "text-sidebar-primary scale-110" 
-            : "text-sidebar-muted group-hover:text-sidebar-foreground group-hover:scale-110 group-hover:rotate-3",
-        )}
-      />
-      {!collapsed ? <span className="truncate">{label}</span> : <span className="sr-only">{label}</span>}
-    </Link>
-  );
-
-  if (!collapsed) return link;
-
-  return (
-    <Tooltip delayDuration={0}>
-      <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-export function SidebarContent({
-  collapsed,
-  onNavigate,
-  showCollapse = true,
-}: {
-  collapsed: boolean;
-  onNavigate?: () => void;
-  showCollapse?: boolean;
+export function SidebarContent({ collapsed, onNavigate, showCollapse = true }: {
+  collapsed: boolean; onNavigate?: () => void; showCollapse?: boolean;
 }) {
   const { setCollapsed } = useShell();
   const pathname = usePathname();
-  const user = useStoredUser();
-  const composing = pathname.startsWith("/emails/new");
-
-  const composeButton = (
-    <Link
-      href="/emails/new"
-      onClick={onNavigate}
-      className={cn(
-        "group flex h-9 items-center justify-center gap-2 rounded-lg bg-primary text-[13px] font-medium text-primary-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105",
-        collapsed ? "px-0" : "px-3",
-      )}
-    >
-      <PenLine className="size-4 transition-all duration-300 group-hover:rotate-12 group-hover:scale-110" />
-      {!collapsed ? <span>Compose</span> : <span className="sr-only">Compose</span>}
-    </Link>
-  );
-
   return (
-    <div className="flex h-full flex-col text-sidebar-foreground">
-      <div
-        className={cn(
-          "flex h-[3.75rem] items-center gap-1 border-b border-sidebar-border px-3",
-          collapsed ? "justify-center" : "justify-between",
-        )}
-      >
-        <Brand collapsed={collapsed} inverted />
-        {showCollapse && !collapsed ? (
-          <button
-            type="button"
-            aria-label="Collapse sidebar"
-            onClick={() => setCollapsed(true)}
-            className="flex size-8 items-center justify-center rounded-lg text-sidebar-muted transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-110 active:scale-95"
-          >
-            <PanelLeftClose className="size-4 transition-transform duration-200" />
-          </button>
-        ) : null}
-      </div>
-
-      {showCollapse && collapsed ? (
-        <div className="border-b border-sidebar-border px-2 py-2">
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label="Expand sidebar"
-                onClick={() => setCollapsed(false)}
-                className="flex h-9 w-full items-center justify-center rounded-lg text-sidebar-muted transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground hover:scale-110 active:scale-95"
-              >
-                <PanelLeftOpen className="size-4 transition-transform duration-200" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Expand</TooltipContent>
-          </Tooltip>
-        </div>
-      ) : null}
-
-      <div className="border-b border-sidebar-border px-2 py-3">
-        <WorkspaceSwitcher collapsed={collapsed} />
-      </div>
-
-      <div className="px-2 pt-3">
-        {collapsed ? (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>{composeButton}</TooltipTrigger>
-            <TooltipContent side="right">Compose</TooltipContent>
-          </Tooltip>
-        ) : (
-          composeButton
-        )}
-        {composing ? <span className="sr-only">Currently composing</span> : null}
-      </div>
-
-      <ScrollArea className="flex-1">
-        <nav className="space-y-5 px-2 py-4">
-          {NAV_SECTIONS.map((section) => (
-            <div key={section.id}>
-              {!collapsed ? (
-                <p className="mb-1.5 px-2.5 text-[10px] font-semibold tracking-[0.16em] text-sidebar-muted uppercase">
-                  {section.label}
-                </p>
-              ) : null}
-              <div className="space-y-0.5">
-                {section.items.map((item) => (
-                  <NavLink
-                    key={item.href}
-                    href={item.href}
-                    label={item.label}
-                    icon={item.icon}
-                    collapsed={collapsed}
-                    onNavigate={onNavigate}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </nav>
-      </ScrollArea>
-      {!collapsed ? (
-        <div className="border-t border-sidebar-border px-3 py-3">
-          <p className="truncate text-xs font-medium text-sidebar-foreground">{user?.organization ?? "Workspace"}</p>
-          <p className="truncate text-[11px] text-sidebar-muted">{user?.email ?? "Signed in"}</p>
-        </div>
-      ) : null}
+    <div className="flex h-full flex-col bg-white">
+      {showCollapse ? <div className="hidden h-14 shrink-0 items-center justify-end border-b px-3 lg:flex">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </Button>
+      </div> : null}
+      <nav className="flex-1 overflow-y-auto p-3" aria-label="Workspace">
+        {NAV_SECTIONS.map((section) => <div key={section.id} className="mb-5">
+          {!collapsed ? <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-emerald-600">{section.label}</div> : null}
+          <div className="space-y-1">
+            {section.items.map((item) => {
+              const active = isActiveNavItem(pathname, item.href);
+              const Icon = item.icon;
+              const link = <Link key={item.href} href={item.href} onClick={onNavigate} aria-current={active ? "page" : undefined}
+                className={cn("group flex h-10 items-center rounded-lg px-3 transition-colors", active ? "bg-emerald-100 text-emerald-700" : "text-gray-600 hover:bg-gray-100 hover:text-emerald-700")}>
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className={cn("ml-3 overflow-hidden whitespace-nowrap text-sm font-medium transition-all duration-300", collapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{item.label}</span>
+              </Link>;
+              return collapsed ? <Tooltip key={item.href} delayDuration={0}><TooltipTrigger asChild>{link}</TooltipTrigger><TooltipContent side="right">{item.label}</TooltipContent></Tooltip> : link;
+            })}
+          </div>
+        </div>)}
+      </nav>
     </div>
   );
 }

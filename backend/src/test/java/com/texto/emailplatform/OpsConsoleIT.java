@@ -3,6 +3,7 @@ package com.texto.emailplatform;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,6 +72,86 @@ class OpsConsoleIT {
                     "Ops Admin"
             ));
         }
+    }
+
+    @Autowired
+    private com.texto.emailplatform.common.config.EmailPlatformProperties platformProperties;
+
+    @Autowired
+    private com.texto.emailplatform.auth.domain.DashboardSessionRepository dashboardSessions;
+
+    @Test
+    void adminCanProvisionWithPublicSignupDisabledWithoutIssuingOwnerSession() throws Exception {
+        String email = "provision-" + UUID.randomUUID() + "@example.com";
+        String body = """
+                {"organization":"  Provisioned workspace  ","email":"%s","password":"OwnerTest123!"}
+                """.formatted(email);
+        String adminToken = adminLogin();
+        platformProperties.getSecurity().setRegistrationEnabled(false);
+        try {
+            mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(post("/api/v1/admin/tenants").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isUnauthorized());
+            long sessionsBefore = dashboardSessions.count();
+            MvcResult created = mockMvc.perform(post("/api/v1/admin/tenants")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.organization").value("Provisioned workspace"))
+                    .andExpect(jsonPath("$.data.email").value(email))
+                    .andExpect(jsonPath("$.data.role").value("OWNER"))
+                    .andExpect(jsonPath("$.data.token").doesNotExist())
+                    .andExpect(jsonPath("$.data.password").doesNotExist())
+                    .andReturn();
+            assertThat(dashboardSessions.count()).isEqualTo(sessionsBefore);
+            String tenantId = JsonPath.read(created.getResponse().getContentAsString(), "$.data.tenantId");
+            mockMvc.perform(get("/api/v1/admin/tenants/" + tenantId + "/usage")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.planCode").value("FREE"));
+            mockMvc.perform(post("/api/v1/admin/tenants")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("EMAIL_ALREADY_REGISTERED"));
+            mockMvc.perform(post("/api/v1/admin/tenants")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON).content("""
+                                    {"organization":" ","email":"bad","password":"short"}
+                                    """))
+                    .andExpect(status().isBadRequest());
+            MvcResult loggedIn = mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"" + email + "\",\"password\":\"OwnerTest123!\"}"))
+                    .andExpect(status().isOk()).andReturn();
+            String ownerToken = JsonPath.read(loggedIn.getResponse().getContentAsString(), "$.data.token");
+            mockMvc.perform(post("/api/v1/admin/tenants")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(get("/api/v1/admin/tenants/" + tenantId)
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                    .andExpect(status().isOk());
+        } finally {
+            platformProperties.getSecurity().setRegistrationEnabled(true);
+        }
+    }
+
+    @Test
+    void initialPlanGrantIsRealAndInvalidPlanRollsBackAccount() throws Exception {
+        String email = "plan-grant-" + UUID.randomUUID() + "@example.com";
+        String adminToken = adminLogin();
+        String template = """
+                {"organization":"Plan grant", "email":"%s", "password":"OwnerTest123!", "planCode":"%s"}
+                """;
+        mockMvc.perform(post("/api/v1/admin/tenants").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(template.formatted(email, "MISSING_PLAN")))
+                .andExpect(status().isBadRequest());
+        MvcResult created = mockMvc.perform(post("/api/v1/admin/tenants").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(template.formatted(email, "STARTER")))
+                .andExpect(status().isOk()).andReturn();
+        String tenantId = JsonPath.read(created.getResponse().getContentAsString(), "$.data.tenantId");
+        mockMvc.perform(get("/api/v1/admin/tenants/" + tenantId + "/usage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.planCode").value("STARTER"));
     }
 
     @Test
@@ -231,6 +312,69 @@ class OpsConsoleIT {
                 .andExpect(jsonPath("$.data.items[*].subject").value(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.hasItem("only-b")
                 )));
+    }
+
+    @Test
+    void platformAdminCanReviewAndRestoreTenantAccess() throws Exception {
+        String tenantEmail = "tenant-access-" + UUID.randomUUID() + "@example.com";
+        String tenantToken = register(tenantEmail);
+        String tenantId = JsonPath.read(
+                mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + tenantToken))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString(),
+                "$.data.tenantId"
+        );
+        String adminToken = adminLogin();
+
+        MvcResult keyResult = mockMvc.perform(post("/api/v1/api-keys")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tenantToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"tenant-access-key\",\"environment\":\"TEST\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String apiKey = JsonPath.read(keyResult.getResponse().getContentAsString(), "$.data.secret");
+
+        mockMvc.perform(get("/api/v1/admin/tenants/" + tenantId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+        mockMvc.perform(get("/api/v1/admin/tenants")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("q", tenantId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].id").value(tenantId));
+        mockMvc.perform(get("/api/v1/admin/tenants/" + tenantId + "/usage")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.planCode").value("FREE"))
+                .andExpect(jsonPath("$.data.subscriptionStatus").isNotEmpty());
+
+        mockMvc.perform(put("/api/v1/admin/tenants/" + tenantId + "/access")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SUSPENDED"));
+
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + tenantToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/emails").header("X-Api-Key", apiKey))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/admin/tenants/" + tenantId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SUSPENDED"));
+
+        mockMvc.perform(put("/api/v1/admin/tenants/" + tenantId + "/access")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + tenantToken))
+                .andExpect(status().isOk());
     }
 
     private String adminLogin() throws Exception {

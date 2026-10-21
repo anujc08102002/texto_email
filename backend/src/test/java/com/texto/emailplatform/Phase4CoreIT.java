@@ -245,6 +245,33 @@ class Phase4CoreIT {
                 .andExpect(jsonPath("$.data.records[0].value").value(org.hamcrest.Matchers.containsString("v=DKIM1; k=rsa; p=")));
     }
 
+    @Autowired
+    private com.texto.emailplatform.common.config.EmailPlatformProperties platformProperties;
+
+    @Test
+    void previouslyProvisionedTestDomainCannotBeVerifiedOrUsedWhenTestSendersAreDisabled() throws Exception {
+        String token = register();
+        String slug = tenantSlug(token);
+        MvcResult listed = mockMvc.perform(get("/api/v1/domains").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk()).andReturn();
+        String domainId = JsonPath.read(listed.getResponse().getContentAsString(), "$.data[0].id");
+        platformProperties.getDomains().setAllowPlatformTestSenders(false);
+        try {
+            mockMvc.perform(post("/api/v1/domains/" + domainId + "/verify")
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("PLATFORM_TEST_SENDERS_DISABLED"));
+            mockMvc.perform(post("/api/v1/emails").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON).content("""
+                                    {"from":"owner@%s.texto.test","to":"person@example.com","subject":"Blocked","text":"body"}
+                                    """.formatted(slug)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("PLATFORM_TEST_SENDERS_DISABLED"));
+        } finally {
+            platformProperties.getDomains().setAllowPlatformTestSenders(true);
+        }
+    }
+
     @Test
     void dnsAuthenticationRejectsIncompleteAndMismatchedRecords() throws Exception {
         String token = register();

@@ -14,6 +14,10 @@ public interface EmailMessageRepository extends JpaRepository<EmailMessageEntity
 
     List<EmailMessageEntity> findTop50ByTenantIdOrderByCreatedAtDesc(UUID tenantId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from EmailMessageEntity m where m.id = :id and m.tenantId = :tenantId")
+    Optional<EmailMessageEntity> lockByIdAndTenantId(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
+
     Optional<EmailMessageEntity> findByIdAndTenantId(UUID id, UUID tenantId);
 
     Optional<EmailMessageEntity> findByTenantIdAndIdempotencyKey(UUID tenantId, String idempotencyKey);

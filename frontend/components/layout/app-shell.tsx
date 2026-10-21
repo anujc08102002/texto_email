@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/header";
 import { ShellProvider, useShell } from "@/components/layout/shell-context";
 import { SidebarContent } from "@/components/layout/sidebar";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useStoredUser } from "@/hooks/use-stored-user";
 import { duration, easeOut } from "@/lib/motion/variants";
@@ -19,6 +20,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   const { collapsed, mobileOpen, setMobileOpen } = useShell();
   const user = useStoredUser();
   const isClient = useIsClient();
+  const largeWindow = useMediaQuery("(min-width: 1440px)");
   const publicPath = pathname === "/plans";
 
   useEffect(() => {
@@ -36,11 +38,13 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-app">
+    <div className="texto-workspace flex h-dvh flex-col overflow-hidden bg-gray-100">
+      <Header />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
       <motion.aside
         aria-label="Sidebar"
-        className={cn("bg-rail z-20 hidden h-dvh shrink-0 overflow-hidden border-r border-sidebar-border lg:block")}
-        animate={{ width: collapsed ? 76 : 272 }}
+        className={cn("bg-rail z-20 hidden h-full shrink-0 overflow-hidden border-r border-sidebar-border lg:block")}
+        animate={{ width: collapsed ? 72 : largeWindow ? 288 : 248 }}
         transition={{ duration: duration.base, ease: easeOut }}
       >
         <SidebarContent collapsed={collapsed} />
@@ -53,18 +57,18 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         </DrawerContent>
       </Drawer>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Header />
-        <main className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+        <main className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] md:px-8">
           <motion.div
             key={pathname}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: duration.base, ease: easeOut }}
-            className="relative flex min-h-full min-w-0 w-full flex-col"
+            className="workspace-content relative flex min-h-full min-w-0 w-full flex-col"
           >
             {children}
           </motion.div>
         </main>
+      </div>
       </div>
       <CommandMenu />
     </div>

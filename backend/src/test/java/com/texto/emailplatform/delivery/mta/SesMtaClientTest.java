@@ -49,6 +49,21 @@ class SesMtaClientTest {
     }
 
     @Test
+    void envelopeRecipientsIncludeBlindCopiesWithoutExposingThemInMime() {
+        SesV2Client ses = mock(SesV2Client.class);
+        when(ses.sendEmail(any(SendEmailRequest.class))).thenReturn(SendEmailResponse.builder().messageId("id").build());
+        byte[] mime = "From: sender@texto-qa.in\r\nTo: to@example.com\r\nCc: cc@example.com\r\n\r\nhello".getBytes(StandardCharsets.UTF_8);
+        List<String> recipients = List.of("to@example.com", "cc@example.com", "blind@example.com");
+
+        client(ses, properties()).submit(new MtaSubmitRequest(new SmtpEnvelope("sender@texto-qa.in", recipients), mime));
+
+        SendEmailRequest sent = captureRequest(ses);
+        assertThat(sent.destination().toAddresses()).containsExactlyElementsOf(recipients);
+        assertThat(sent.content().raw().data().asByteArray()).isEqualTo(mime);
+        assertThat(sent.content().raw().data().asUtf8String()).doesNotContain("blind@example.com", "Bcc:");
+    }
+
+    @Test
     void configurationSetIsIncludedWhenConfigured() {
         SesV2Client ses = mock(SesV2Client.class);
         when(ses.sendEmail(any(SendEmailRequest.class))).thenReturn(SendEmailResponse.builder()

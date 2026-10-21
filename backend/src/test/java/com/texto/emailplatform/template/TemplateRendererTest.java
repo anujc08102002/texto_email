@@ -12,6 +12,14 @@ class TemplateRendererTest {
     private final TemplateRenderer renderer = new TemplateRenderer();
 
     @Test
+    void escapesContactValuesInHtmlWithoutChangingPlainText() {
+        var rendered = renderer.render("Hi {{name}}", "<p>{{name}}</p>", "Hi {{name}}",
+                Map.of("name", Map.of("type", "string")), Map.of("name", "<img src=x>&\"'"));
+        assertThat(rendered.htmlContent()).isEqualTo("<p>&lt;img src=x&gt;&amp;&quot;&#39;</p>");
+        assertThat(rendered.textContent()).isEqualTo("Hi <img src=x>&\"'");
+    }
+
+    @Test
     void replacesDeclaredVariables() {
         var rendered = renderer.render(
                 "Hi {{first_name}}",

@@ -1,0 +1,1 @@
+package com.texto.emailplatform.campaign.api; import jakarta.validation.constraints.*; import java.util.*; public record CampaignRecipientRequest(@NotEmpty @Size(max=1000) List<@NotNull UUID> contactIds){}

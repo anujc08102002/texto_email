@@ -1,112 +1,61 @@
-import { ArrowRight, BarChart3, Globe, KeyRound, Mail, ShieldCheck, Sparkles, Zap } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { Brand } from "@/components/layout/brand";
-import { ProductPreview } from "@/components/marketing/product-preview";
-import { Button } from "@/components/ui/button";
-import { getPlatformStatus } from "@/services/platform";
+import { ArrowRight, BarChart3, CheckCircle2, Code2, FileText, Globe, Mail, Send, ShieldCheck, Users, Zap } from "lucide-react";
+import { ChannelNavigation } from "@/components/layout/channel-navigation";
+import { InteractiveEmailShowcase } from "@/components/marketing/interactive-email-showcase";
+import { MarketingMotion } from "@/components/marketing/marketing-motion";
+import "./textonext-home.css";
+import "./email-home.css";
 
-export const dynamic = "force-dynamic";
+const features = [
+  { icon: Send, title: "Email Campaigns", body: "Reach your customers with personalised email campaigns, saved drafts, and scheduled sends." },
+  { icon: FileText, title: "Beautiful Templates", body: "Create reusable email templates and see exactly how your message looks on a desktop screen." },
+  { icon: Users, title: "Contact Management", body: "Import your audience, organise contact lists, and build segments for relevant conversations." },
+  { icon: BarChart3, title: "Delivery Insights", body: "Follow sent, delivered, bounced, and complained messages from one familiar dashboard." },
+];
 
-export default async function HomePage() {
-  let statusLabel = "API unreachable";
-  let healthy = false;
-  try {
-    const status = await getPlatformStatus();
-    statusLabel = `${status.name} ${status.version} · ${status.status}`;
-    healthy = status.status === "ok";
-  } catch {
-    statusLabel = "Backend is not reachable on NEXT_PUBLIC_API_BASE_URL";
-  }
-
+export default function HomePage() {
   return (
-    <main className="bg-app relative min-h-dvh overflow-x-hidden">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 left-[-12%] h-[34rem] w-[34rem] rounded-full bg-primary/16 blur-3xl" />
-        <div className="absolute top-24 right-[-8%] h-80 w-80 rounded-full bg-warning/20 blur-3xl" />
-      </div>
-
-      <header className="relative flex w-full items-center justify-between gap-3 px-4 py-4 sm:px-8 sm:py-5 lg:px-12 glass backdrop-blur-2xl transition-all duration-300">
-        <Brand href="/" />
-        <nav className="flex items-center gap-1 sm:gap-2">
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex transition-all duration-200 hover:scale-105">
-            <Link href="/plans">Plans</Link>
-          </Button>
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex transition-all duration-200 hover:scale-105">
-            <Link href="/admin/login">Admin</Link>
-          </Button>
-          <Button asChild size="sm" className="gradient-border transition-all duration-200 hover:scale-105">
-            <Link href="/login">Sign in</Link>
-          </Button>
-        </nav>
+    <MarketingMotion><div className="home-light email-home">
+      <header id="site-nav" className="fixed top-0 z-50 w-full border-b bg-white/95 backdrop-blur-md">
+        <div className="home-container flex h-20 items-center justify-between gap-3">
+          <Link href="/" aria-label="Texto home"><Image src="/texto.png" alt="Texto" width={55} height={55} /></Link>
+          <ChannelNavigation marketing />
+          <nav aria-label="Email navigation" className="flex items-center gap-6 text-sm font-medium">
+            <Link href="#features" className="hidden md:block">Product</Link><Link href="/plans" className="hidden md:block">Pricing</Link>
+            <Link href="/login" className="rounded-xl bg-[#00c896] px-4 py-2.5 text-white! hover:bg-[#00a67a]">Sign in</Link>
+          </nav>
+        </div>
       </header>
-
-      <div className="relative grid w-full items-center gap-10 px-4 pb-10 pt-4 sm:px-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-12 lg:px-12 lg:pb-16 lg:pt-8">
-        <div className="min-w-0">
-          <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/80 bg-card/80 px-3 py-1 text-xs shadow-xs backdrop-blur-sm shimmer">
-            <span className={`size-1.5 shrink-0 rounded-full ${healthy ? "bg-success" : "bg-destructive"}`} aria-hidden />
-            <span className="text-tech truncate text-muted-foreground">{statusLabel}</span>
-          </div>
-          <h1 className="text-display mt-6 text-foreground sm:mt-7">
-            Email that
-            <span className="mt-1 block italic text-primary">ships with the product.</span>
-          </h1>
-          <p className="text-body mt-5 max-w-xl text-muted-foreground sm:mt-6">
-            Texto is transactional infrastructure for teams who care about delivery, domains, and developer access —
-            not another marketing blast tool.
-          </p>
-          <div className="mt-7 flex flex-wrap gap-3 sm:mt-8">
-            <Button asChild size="lg" className="gradient-border transition-all duration-200 hover:scale-105">
-              <Link href="/login">
-                Open workspace
-                <ArrowRight />
-              </Link>
-            </Button>
-            <Button asChild variant="secondary" size="lg" className="transition-all duration-200 hover:scale-105">
-              <Link href="/plans">View plans</Link>
-            </Button>
-          </div>
-          <dl className="mt-8 grid max-w-lg grid-cols-3 gap-3 border-t border-border/70 pt-5 sm:mt-10 sm:gap-4 sm:pt-6">
-            {[
-              { label: "Delivery", value: "Async" },
-              { label: "Auth", value: "SPF · DKIM" },
-              { label: "Access", value: "Keys once" },
-            ].map((item) => (
-              <div key={item.label}>
-                <dt className="tech-label">{item.label}</dt>
-                <dd className="mt-1 text-sm font-medium">{item.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-        <div className="min-w-0 lg:block animate-in slide-in-from-right duration-500">
-          <ProductPreview />
-        </div>
-      </div>
-
-      <section className="relative w-full px-4 pb-16 sm:px-8 sm:pb-20 lg:px-12">
-        <p className="tech-label">Platform</p>
-        <h2 className="font-display mt-2 text-3xl tracking-tight text-foreground">Everything after “send”.</h2>
-        <ul className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { icon: Mail, title: "Message control", body: "Compose, inspect status, and follow delivery timelines." },
-            { icon: Globe, title: "Domain readiness", body: "SPF, DKIM, and DMARC without leaving the workspace." },
-            { icon: KeyRound, title: "Developer access", body: "API keys revealed once. Secrets stay masked." },
-            { icon: BarChart3, title: "Usage & plans", body: "Live entitlements, quotas, and billing context." },
-            { icon: Zap, title: "Async pipeline", body: "Queue, process, send — never block the product request." },
-            { icon: ShieldCheck, title: "Suppressions", body: "Keep bounced and complained addresses out of the path." },
-            { icon: Sparkles, title: "Templates", body: "Versioned HTML for product and transactional mail." },
-            { icon: ArrowRight, title: "Webhooks", body: "Push delivery events into your own systems." },
-          ].map((item, index) => (
-            <li key={item.title} className="panel group rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 animate-in slide-in-from-bottom duration-500" style={{ animationDelay: `${index * 100}ms` }}>
-              <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 group-hover:scale-110 transition-all">
-                <item.icon className="size-4" aria-hidden />
-              </div>
-              <p className="mt-4 text-sm font-semibold group-hover:text-primary transition-colors">{item.title}</p>
-              <p className="text-caption mt-1.5 leading-5">{item.body}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </main>
+      <main>
+        <section id="hero" className="home-hero">
+          <div className="home-container"><div className="home-hero-grid">
+            <div className="home-hero-text">
+              <span className="home-pill"><span className="dot" /> Email Campaigns &amp; Automation</span>
+              <h1>Turn Emails into<br /><span className="home-gradient-text">Business Growth</span></h1>
+              <p className="home-lead">Powerful email marketing to engage customers, personalise every message, and drive sales — straight to their inbox.</p>
+              <div className="home-hero-cta"><Link href="/login" className="home-btn home-btn-primary">Get Started <ArrowRight size={18} /></Link><Link href="#features" className="home-btn home-btn-outline">Explore Product</Link></div>
+              <div className="home-trustline"><span>Personalised campaigns</span><span className="sep">·</span><span>Reusable templates</span><span className="sep">·</span><span>Amazon SES delivery</span></div>
+              <div className="home-stats">{[{value:"Create",label:"Your message"},{value:"Connect",label:"With your audience"},{value:"Grow",label:"Your business"}].map(item => <div className="home-stat" key={item.value}><div className="home-stat-num">{item.value}</div><div className="home-stat-label">{item.label}</div></div>)}</div>
+            </div>
+            <div className="home-hero-visual"><InteractiveEmailShowcase /></div>
+          </div></div>
+        </section>
+        <section id="features" className="home-section"><div className="home-container">
+          <div className="home-section-head"><h2 className="home-h2">One platform. <span className="home-accent-text">Complete customer connections.</span></h2><p className="home-lead">The same Texto experience you know, built for email — connect, engage, and grow your business.</p></div>
+          <div className="home-grid home-grid-4">{features.map(item => <div className="home-card is-hover" key={item.title}><div className="home-card-ic"><item.icon size={24} /></div><h3>{item.title}</h3><p>{item.body}</p></div>)}</div>
+        </div></section>
+        <section id="product" className="home-section bg-egg"><div className="home-container">
+          <div className="home-section-head"><h2 className="home-h2">Built for scale. Designed for simplicity.</h2><p className="home-lead">Everything your team needs to create and send emails from a familiar workspace.</p></div>
+          <div className="home-grid home-grid-3">{[{icon:Mail,title:"Email for every occasion",body:"Send campaigns and transactional messages from your own verified domain."},{icon:Globe,title:"Your brand, your domain",body:"Manage sending domains and authentication from your workspace."},{icon:Code2,title:"Connect your applications",body:"Use API keys and webhooks to connect email to your existing tools."}].map(item => <div className="home-card is-hover" key={item.title}><div className="home-card-ic"><item.icon size={24} /></div><h3>{item.title}</h3><p>{item.body}</p></div>)}</div>
+        </div></section>
+        <section className="home-section"><div className="home-container"><div className="home-split">
+          <div><h2 className="home-h2">Why businesses choose <span className="home-accent-text">Texto</span></h2><p className="home-lead">Your WhatsApp and email workspaces share one familiar design, so your team can focus on connecting with customers.</p><div className="home-checks">{["Personalised messages and reusable templates","Contacts, lists, and audience segments","Campaign drafts and scheduled sending","Verified sender domains","Delivery history and suppression controls","API access and delivery webhooks"].map(text => <div className="home-check" key={text}><CheckCircle2 size={22} /><span>{text}</span></div>)}</div></div>
+          <div className="home-grid home-grid-2">{[{icon:Zap,title:"Simple to send",body:"Create a message, choose your audience, and launch your campaign."},{icon:ShieldCheck,title:"Delivery controls",body:"Manage sender authentication, unsubscribes, and suppressed recipients."}].map(item => <div className="home-card" key={item.title}><div className="home-card-ic"><item.icon size={24} /></div><h3>{item.title}</h3><p>{item.body}</p></div>)}</div>
+        </div></div></section>
+        <section id="pricing" className="home-section bg-egg"><div className="home-container"><div className="home-price-teaser"><h2 className="home-h2">Simple, transparent pricing</h2><p className="home-lead">Find a plan that fits your audience and email volume.</p><div className="home-hero-cta justify-center"><Link href="/plans" className="home-btn home-btn-primary">View Pricing &amp; Plans <ArrowRight size={18} /></Link></div></div></div></section>
+      </main>
+      <footer className="footer-section py-10 text-white"><div className="home-container flex flex-wrap items-center justify-between gap-4"><p className="text-sm">Texto · Connect. Engage. Grow.</p><nav aria-label="Footer" className="flex gap-5 text-sm"><Link href="/login">Email workspace</Link><Link href="/admin/login">Admin login</Link></nav></div></footer>
+    </div></MarketingMotion>
   );
 }

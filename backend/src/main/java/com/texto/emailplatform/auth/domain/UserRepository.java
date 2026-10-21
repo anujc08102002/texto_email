@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 public interface UserRepository extends JpaRepository<UserEntity, UUID>, JpaSpecificationExecutor<UserEntity> {
 
+    Optional<UserEntity> findByIdAndTenantId(UUID id, UUID tenantId);
+
     Optional<UserEntity> findByTenantIdAndEmail(UUID tenantId, String email);
 
     Optional<UserEntity> findFirstByEmailIgnoreCase(String email);

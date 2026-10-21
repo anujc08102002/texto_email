@@ -3,7 +3,14 @@
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { SectionPanel } from "@/components/ops/section-panel";
 import { cn } from "@/lib/utils";
-import type { PresentationAnalyticsPoint } from "@/types/presentation";
+
+type AnalyticsChartPoint = {
+  date: string;
+  sent: number;
+  delivered: number;
+  bounced: number;
+  failed: number;
+};
 
 export function AnalyticsChart({
   title,
@@ -15,7 +22,7 @@ export function AnalyticsChart({
 }: {
   title: string;
   description?: string;
-  data: PresentationAnalyticsPoint[];
+  data: AnalyticsChartPoint[];
   preview?: boolean;
   className?: string;
   fill?: boolean;

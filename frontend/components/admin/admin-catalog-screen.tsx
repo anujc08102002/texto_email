@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Database, Filter, RefreshCw, Search } from "lucide-react";
 import { OpsPageFrame } from "@/components/admin/ops-page-frame";
 import { Mono, OpsStatus, formatOpsDate, shortId } from "@/components/admin/ops-primitives";
@@ -22,7 +23,7 @@ const CONFIG: Record<CatalogKind, { title: string; description: string; endpoint
   traffic: { title: "Traffic", description: "Sanitized HTTP request telemetry across the platform.", endpoint: "/api/v1/admin/http-request-audit", search: "Search route, request ID, tenant…", statusKey: "statusCode", columns: [["timestamp","Timestamp","date"],["httpMethod","Method","status"],["route","Route","text"],["statusCode","Status","status"],["durationMs","Duration","duration"],["tenantId","Tenant","id"],["requestId","Request ID","id"]] },
   audit: { title: "Audit log", description: "Immutable record of authenticated platform-admin actions.", endpoint: "/api/v1/admin/audit", search: "Search actor, action, target, correlation ID…", columns: [["createdAt","Timestamp","date"],["adminId","Actor","id"],["method","Action","status"],["path","Target","text"],["statusCode","Result","status"],["requestId","Correlation ID","id"]] },
   domains: { title: "Domains", description: "Verification and DNS authentication state across tenants.", endpoint: "/api/v1/admin/domains", search: "Search domain or tenant…", statusKey: "verificationStatus", columns: [["domain","Domain","text"],["verificationStatus","Verification","status"],["spf","SPF","dns"],["dkim","DKIM","dns"],["dmarc","DMARC","dns"],["mailFromDomain","MAIL FROM","text"],["tenantId","Tenant","id"]] },
-  tenants: { title: "Tenants", description: "Read-only customer workspace directory and lifecycle status.", endpoint: "/api/v1/admin/tenants", search: "Search name, slug, or tenant ID…", statusKey: "status", columns: [["name","Tenant","text"],["slug","Slug","text"],["status","Status","status"],["id","Tenant ID","id"],["createdAt","Created","date"],["updatedAt","Updated","date"]] },
+  tenants: { title: "Tenants", description: "Create customer workspaces and manage their lifecycle status.", endpoint: "/api/v1/admin/tenants", search: "Search name, slug, or tenant ID…", statusKey: "status", columns: [["name","Tenant","text"],["slug","Slug","text"],["status","Status","status"],["id","Tenant ID","id"],["createdAt","Created","date"],["updatedAt","Updated","date"]] },
   suppressions: { title: "Suppressions", description: "Addresses blocked by bounce, complaint, unsubscribe, or policy.", endpoint: "/api/v1/admin/suppressions", search: "Search email, source, reason…", statusKey: "type", columns: [["email","Address","text"],["type","Type","status"],["source","Source","text"],["reason","Reason","text"],["tenantId","Tenant","id"],["messageId","Message","id"],["createdAt","Created","date"]] },
   bounces: { title: "Bounce events", description: "Provider feedback, classification, and message correlation.", endpoint: "/api/v1/admin/bounces", search: "Search recipient, diagnostic, event ID…", statusKey: "bounceClass", columns: [["receivedAt","Received","date"],["finalRecipient","Recipient","text"],["bounceClass","Class","status"],["failureKind","Failure","text"],["statusCode","SMTP","status"],["correlationStatus","Correlation","status"],["emailMessageId","Message","id"]] },
   complaints: { title: "Complaint events", description: "Abuse feedback, processing state, and provider correlation.", endpoint: "/api/v1/admin/complaints", search: "Search recipient, provider ID, diagnostic…", statusKey: "processingStatus", columns: [["receivedAt","Received","date"],["recipient","Recipient","text"],["complaintType","Type","status"],["processingStatus","Processing","status"],["provider","Provider","text"],["correlationStatus","Correlation","status"],["emailMessageId","Message","id"]] },
@@ -45,11 +46,15 @@ function cell(row: Row, key: string, kind: string) {
 }
 
 export function AdminCatalogScreen({ kind, compact = false }: { kind: CatalogKind; compact?: boolean }) {
+  const router = useRouter();
   const config = CONFIG[kind];
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
-  const resource = useAdminResource(() => getOpsPage<Row>(`${config.endpoint}${queryString({ page: page - 1, size: 20 })}`), [config.endpoint, page]);
+  const resource = useAdminResource(
+    () => getOpsPage<Row>(`${config.endpoint}${queryString({ page: page - 1, size: 20, q: kind === "tenants" ? search : undefined })}`),
+    [config.endpoint, page, kind === "tenants" ? search : null],
+  );
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (resource.data?.items ?? []).filter((row) => {
@@ -64,18 +69,18 @@ export function AdminCatalogScreen({ kind, compact = false }: { kind: CatalogKin
     <SectionPanel className="min-w-0 overflow-hidden p-0" title={compact ? undefined : `${resource.data?.totalElements?.toLocaleString() ?? "—"} records`} action={compact ? undefined : <Button type="button" variant="ghost" size="sm" onClick={resource.reload}><RefreshCw className="size-3.5" />Refresh</Button>}>
       <div className="border-b border-border/70 p-4">
         <div className="flex flex-col gap-2 sm:flex-row">
-          <label className="relative min-w-0 flex-1"><span className="sr-only">{config.search}</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={config.search} className="pl-9" /></label>
+          <label className="relative min-w-0 flex-1"><span className="sr-only">{config.search}</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={config.search} className="pl-9" /></label>
           {statusOptions.length ? <Select value={status} onValueChange={setStatus}><SelectTrigger className="w-full sm:w-52"><Filter className="size-3.5" /><SelectValue placeholder="All states" /></SelectTrigger><SelectContent><SelectItem value="all">All states</SelectItem>{statusOptions.map((item) => <SelectItem key={item} value={item}>{item.replaceAll("_", " ")}</SelectItem>)}</SelectContent></Select> : null}
         </div>
       </div>
       <div className="min-h-[18rem]">
-        {resource.loading ? <LoadingState rows={6} className="p-4" label={`Loading ${config.title}`} /> : resource.error ? <div className="p-4"><ErrorState description={resource.error} onRetry={resource.reload} /></div> : <OpsTable rows={rows} columns={columns} rowKey={(row) => String(row.id)} emptyTitle={`No ${config.title.toLowerCase()} found`} />}
+        {resource.loading ? <LoadingState rows={6} className="p-4" label={`Loading ${config.title}`} /> : resource.error ? <div className="p-4"><ErrorState description={resource.error} onRetry={resource.reload} /></div> : <OpsTable rows={rows} columns={columns} rowKey={(row) => String(row.id)} onRowClick={kind === "tenants" ? (row) => router.push(`/admin/tenants/${encodeURIComponent(String(row.id))}`) : undefined} emptyTitle={`No ${config.title.toLowerCase()} found`} />}
       </div>
       {!compact && resource.data ? <Pagination className="border-t border-border/70 p-4" page={page} pageCount={resource.data.totalPages} onPageChange={setPage} /> : null}
     </SectionPanel>
   );
   if (compact) return content;
-  return <OpsPageFrame title={config.title} description={config.description}>{content}</OpsPageFrame>;
+  return <OpsPageFrame title={config.title} description={config.description} actions={kind === "tenants" ? <Button onClick={() => router.push("/admin/accounts/create")}>Add tenant</Button> : undefined}>{content}</OpsPageFrame>;
 }
 
 export function DatabaseExplorerScreen() {

@@ -6,11 +6,11 @@ import {
   Activity,
   ArrowRight,
   BarChart3,
+  Ban,
   Globe,
   KeyRound,
   LayoutTemplate,
   Mail,
-  MousePointerClick,
   Percent,
   Send,
 } from "lucide-react";
@@ -27,10 +27,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiClientError } from "@/lib/api";
 import { formatDateTime, formatRelativeTime } from "@/lib/format";
 import { useStoredUser } from "@/hooks/use-stored-user";
-import { DASHBOARD_METRICS, DELIVERY_BREAKDOWN, PRESENTATION_NOTICE, WEEKLY_SERIES } from "@/lib/presentation";
+import { getAnalytics } from "@/services/analytics";
 import { getEntitlements, getSubscription, getUsage } from "@/services/platform";
 import { listEmails } from "@/services/emails";
-import type { EmailMessage, Entitlements, PlatformStatus, Subscription, UsageSnapshot } from "@/types/api";
+import type { Analytics, EmailMessage, Entitlements, PlatformStatus, Subscription, UsageSnapshot } from "@/types/api";
 
 function findMetric(usage: UsageSnapshot | null, code: string) {
   return usage?.metrics.find((item) => item.metric === code) ?? null;
@@ -40,8 +40,15 @@ const METRIC_ICONS = {
   sent: <Send className="size-4" />,
   delivery: <Activity className="size-4" />,
   bounce: <Percent className="size-4" />,
-  open: <MousePointerClick className="size-4" />,
+  suppression: <Ban className="size-4" />,
 } as const;
+
+const INTEGER_FORMATTER = new Intl.NumberFormat();
+const RATE_FORMATTER = new Intl.NumberFormat(undefined, {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 const QUICK_LINKS = [
   { href: "/domains", label: "Domains", icon: Globe },
@@ -65,6 +72,9 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
   const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [billingLoading, setBillingLoading] = useState(true);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState(false);
   const now = useMemo(() => new Date(), []);
   const healthy = status?.status === "ok";
 
@@ -93,6 +103,16 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
       .finally(() => {
         if (!cancelled) setBillingLoading(false);
       });
+    getAnalytics()
+      .then((result) => {
+        if (!cancelled) setAnalytics(result);
+      })
+      .catch(() => {
+        if (!cancelled) setAnalyticsError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setAnalyticsLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -104,6 +124,22 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
   const templates = findMetric(usage, "TEMPLATES");
   const emailLimit = emails?.limit ?? entitlements?.limits.MONTHLY_EMAILS ?? null;
   const emailPct = emailLimit && emailLimit > 0 ? (emails?.used ?? 0) / emailLimit : 0;
+  const dashboardMetrics = analytics
+    ? [
+        { id: "sent", label: "Emails sent", value: INTEGER_FORMATTER.format(analytics.totals.sent) },
+        { id: "delivery", label: "Delivery rate", value: RATE_FORMATTER.format(analytics.rates.deliveryRate) },
+        { id: "bounce", label: "Bounce rate", value: RATE_FORMATTER.format(analytics.rates.bounceRate) },
+        { id: "suppression", label: "Suppression rate", value: RATE_FORMATTER.format(analytics.rates.suppressionRate) },
+      ]
+    : [];
+  const deliveryRates = analytics
+    ? {
+        delivered: analytics.rates.deliveryRate * 100,
+        bounced: analytics.rates.bounceRate * 100,
+        complained: analytics.rates.complaintRate * 100,
+        suppressed: analytics.rates.suppressionRate * 100,
+      }
+    : null;
 
   const attention = useMemo(() => {
     const items: Array<{ title: string; detail: string; href: string }> = [];
@@ -149,28 +185,45 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
       />
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {DASHBOARD_METRICS.map((metric, index) => (
-          <div key={metric.id} className="animate-in slide-in-from-bottom duration-500" style={{ animationDelay: `${index * 100}ms` }}>
-            <MetricCard
-              metric={metric}
-              icon={METRIC_ICONS[metric.id as keyof typeof METRIC_ICONS] ?? <Activity className="size-4" />}
-              featured={index === 0}
-            />
-          </div>
-        ))}
+        {analyticsLoading
+          ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 sm:h-36" />)
+          : dashboardMetrics.map((metric, index) => (
+              <div key={metric.id} className="animate-in slide-in-from-bottom duration-500" style={{ animationDelay: `${index * 100}ms` }}>
+                <MetricCard
+                  metric={metric}
+                  icon={METRIC_ICONS[metric.id as keyof typeof METRIC_ICONS] ?? <Activity className="size-4" />}
+                  featured={index === 0}
+                />
+              </div>
+            ))}
+        {!analyticsLoading && analyticsError ? (
+          <p className="col-span-2 rounded-xl border border-border/70 bg-card/60 px-4 py-6 text-sm text-muted-foreground xl:col-span-4">
+            Analytics data is unavailable.
+          </p>
+        ) : null}
       </div>
-      <p className="text-caption -mt-1 hidden sm:block">{PRESENTATION_NOTICE}</p>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
         <div className="animate-in slide-in-from-left duration-500">
-          <AnalyticsChart
-            title="Volume"
-            description="Weekly send and delivery"
-            data={WEEKLY_SERIES}
-            preview
-            fill
-            className="min-w-0 panel-elevated"
-          />
+          {analyticsLoading ? (
+            <Skeleton className="h-80 w-full" />
+          ) : analyticsError ? (
+            <SectionPanel title="Volume" description="Send and delivery activity" className="min-h-80 panel-elevated">
+              <p className="text-sm text-muted-foreground">Analytics data is unavailable.</p>
+            </SectionPanel>
+          ) : analytics?.series.length ? (
+            <AnalyticsChart
+              title="Volume"
+              description="Send and delivery activity"
+              data={analytics.series}
+              fill
+              className="min-w-0 panel-elevated"
+            />
+          ) : (
+            <SectionPanel title="Volume" description="Send and delivery activity" className="min-h-80 panel-elevated">
+              <p className="text-sm text-muted-foreground">No analytics activity is available for this period.</p>
+            </SectionPanel>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-col gap-4 animate-in slide-in-from-right duration-500">
@@ -195,7 +248,7 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
             </SectionPanel>
           ) : null}
 
-          <SectionPanel title="Plan" description="Live from GET /api/v1/subscription" className="flex-1 glass">
+          <SectionPanel title="Plan" description="Your current subscription" className="flex-1 glass">
             {billingLoading ? (
               <div className="space-y-2">
                 <Skeleton className="h-5 w-32" />
@@ -222,7 +275,7 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
             )}
           </SectionPanel>
 
-          <SectionPanel title="Monthly quota" description="Live from GET /api/v1/usage" className="flex-1 glass">
+          <SectionPanel title="Monthly quota" description="Your email usage this month" className="flex-1 glass">
             {billingLoading ? (
               <Skeleton className="h-16 w-full" />
             ) : (
@@ -237,19 +290,19 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
                   <div className="group cursor-default">
                     <p className="text-muted-foreground group-hover:text-primary transition-colors">Domains</p>
                     <p className="mt-1 text-tech">
-                      {domains?.used ?? 0}/{domains?.limit ?? entitlements?.limits.DOMAINS ?? "∞"}
+                      {domains?.used ?? 0}/{domains?.limit ?? entitlements?.limits.DOMAINS ?? "âˆž"}
                     </p>
                   </div>
                   <div className="group cursor-default">
                     <p className="text-muted-foreground group-hover:text-primary transition-colors">API keys</p>
                     <p className="mt-1 text-tech">
-                      {apiKeys?.used ?? 0}/{apiKeys?.limit ?? entitlements?.limits.API_KEYS ?? "∞"}
+                      {apiKeys?.used ?? 0}/{apiKeys?.limit ?? entitlements?.limits.API_KEYS ?? "âˆž"}
                     </p>
                   </div>
                   <div className="group cursor-default">
                     <p className="text-muted-foreground group-hover:text-primary transition-colors">Templates</p>
                     <p className="mt-1 text-tech">
-                      {templates?.used ?? 0}/{templates?.limit ?? entitlements?.limits.TEMPLATES ?? "∞"}
+                      {templates?.used ?? 0}/{templates?.limit ?? entitlements?.limits.TEMPLATES ?? "âˆž"}
                     </p>
                   </div>
                 </div>
@@ -257,8 +310,14 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
             )}
           </SectionPanel>
 
-          <SectionPanel title="Delivery mix" className="flex-1 glass">
-            <DeliveryHealth breakdown={DELIVERY_BREAKDOWN} />
+          <SectionPanel title="Delivery rates" className="flex-1 glass">
+            {analyticsLoading ? (
+              <Skeleton className="h-28 w-full" />
+            ) : deliveryRates ? (
+              <DeliveryHealth breakdown={deliveryRates} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Delivery rates are unavailable.</p>
+            )}
           </SectionPanel>
         </div>
       </div>
@@ -284,7 +343,7 @@ export function DashboardScreen({ status }: { status: PlatformStatus | null }) {
 
       <SectionPanel
         title="Recent email activity"
-        description="Loaded from GET /api/v1/emails"
+        description="Latest messages from your workspace"
         className="min-h-[220px] glass"
         action={
           <Button asChild size="sm" variant="ghost">

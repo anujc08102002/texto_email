@@ -492,22 +492,48 @@ public class OpsCatalogService {
 
     @Transactional(readOnly = true)
     public OpsPageResponse<OpsTenantResponse> tenants(String status, String q, int page, int size) {
+        String searchTerm = OpsSpecs.blank(q) ? null : q.trim();
+        UUID tenantIdQuery = null;
+        if (searchTerm != null) {
+            try {
+            tenantIdQuery = UUID.fromString(searchTerm);
+            } catch (IllegalArgumentException ignored) {
+                // Name and slug search still applies when the query is not a tenant UUID.
+            }
+        }
+        UUID exactTenantId = tenantIdQuery;
         Specification<TenantEntity> spec = OpsSpecs.<TenantEntity>statusEquals(status)
                 .and((root, query, cb) -> {
-                    if (OpsSpecs.blank(q)) {
+                    if (searchTerm == null) {
                         return cb.conjunction();
                     }
-                    String like = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
-                    return cb.or(
+                    String like = "%" + searchTerm.toLowerCase(Locale.ROOT) + "%";
+                    var nameOrSlug = cb.or(
                             cb.like(cb.lower(root.get("name")), like),
                             cb.like(cb.lower(root.get("slug")), like)
                     );
+                    return exactTenantId == null ? nameOrSlug : cb.or(nameOrSlug, cb.equal(root.get("id"), exactTenantId));
                 });
         Page<TenantEntity> result = tenantRepository.findAll(
                 spec,
                 OpsPageResponse.pageable(page, size, OpsPageResponse.newestFirst())
         );
         return OpsPageResponse.of(result.map(this::toTenant));
+    }
+
+    @Transactional(readOnly = true)
+    public OpsTenantResponse tenant(UUID tenantId) {
+        return tenantRepository.findById(tenantId)
+                .map(this::toTenant)
+                .orElseThrow(() -> notFound("TENANT_NOT_FOUND", "Tenant was not found"));
+    }
+
+    @Transactional
+    public OpsTenantResponse setTenantAccess(UUID tenantId, boolean enabled) {
+        TenantEntity tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> notFound("TENANT_NOT_FOUND", "Tenant was not found"));
+        tenant.setAccessEnabled(enabled);
+        return toTenant(tenantRepository.save(tenant));
     }
 
     @Transactional(readOnly = true)

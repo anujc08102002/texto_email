@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { HtmlPreview } from "@/components/templates/html-preview";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionPanel } from "@/components/ops/section-panel";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,20 @@ export function TemplateEditor({
   const [submitting, setSubmitting] = useState(false);
 
   const preview = useMemo(() => safePreviewHtml(htmlContent), [htmlContent]);
+  const availableVariables = useMemo(() => {
+    try {
+      const parsed = JSON.parse(schemaJson) as Record<string, unknown>;
+      return Object.keys(parsed);
+    } catch {
+      return [];
+    }
+  }, [schemaJson]);
+
+  function appendVariable(variable: string) {
+    const token = `{{${variable}}}`;
+    setHtmlContent((current) => `${current}${current ? " " : ""}${token}`);
+    setTextContent((current) => `${current}${current ? " " : ""}${token}`);
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -99,7 +114,7 @@ export function TemplateEditor({
         title={mode === "create" ? "New template" : "New version"}
         description="Variables use {{name}} placeholders only. No expressions or server-side code."
       />
-      <form onSubmit={onSubmit} className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <form onSubmit={onSubmit} className="email-editor-grid grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <SectionPanel title="Content">
           <div className="space-y-4">
             {mode === "create" ? (
@@ -145,19 +160,30 @@ export function TemplateEditor({
                 onChange={(e) => setSchemaJson(e.target.value)}
                 className="min-h-36 font-mono text-xs"
               />
+              {availableVariables.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 pt-1" aria-label="Insert variable">
+                  {availableVariables.map((variable) => (
+                    <Button
+                      key={variable}
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 font-mono text-xs"
+                      onClick={() => appendVariable(variable)}
+                    >
+                      {`{{${variable}}}`}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <Button type="submit" loading={submitting}>
               {mode === "create" ? "Create template" : "Create version"}
             </Button>
           </div>
         </SectionPanel>
-        <SectionPanel title="Sandboxed preview" description="Scripts stripped · iframe sandbox without scripts">
-          <iframe
-            title="Template preview"
-            sandbox=""
-            srcDoc={preview}
-            className="h-[28rem] w-full rounded-lg border border-border/80 bg-white"
-          />
+        <SectionPanel title="Email preview" className="email-editor-preview">
+          <HtmlPreview html={preview} subject={subject} />
         </SectionPanel>
       </form>
     </div>

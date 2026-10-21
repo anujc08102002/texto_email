@@ -1,130 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import DataGrid from "@/components/data-grid/DataGrid";
+import type { ReactNode } from "react";
+import type { DataGridColumn, DataGridProps } from "@/components/data-grid/types";
 import { EmailStatusBadge } from "@/components/emails/email-status-badge";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Pagination } from "@/components/ui/pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import type { EmailMessage } from "@/types/api";
 
-const PAGE_SIZE = 10;
-
-export function EmailTable({ messages }: { messages: EmailMessage[] }) {
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-  const [page, setPage] = useState(1);
-
-  const filtered = useMemo(() => {
-    return messages.filter((message) => {
-      const matchesQuery =
-        !query ||
-        message.recipient.toLowerCase().includes(query.toLowerCase()) ||
-        message.subject.toLowerCase().includes(query.toLowerCase()) ||
-        message.id.toLowerCase().includes(query.toLowerCase());
-      const matchesStatus = status === "all" || message.status === status;
-      return matchesQuery && matchesStatus;
-    });
-  }, [messages, query, status]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount);
-  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Search recipient, subject, or message ID"
-            className="pl-9"
-            aria-label="Search emails"
-          />
-        </div>
-        <Select
-          value={status}
-          onValueChange={(value) => {
-            setStatus(value);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="sm:w-44" aria-label="Filter by status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="QUEUED">Queued</SelectItem>
-            <SelectItem value="SENT">Sent</SelectItem>
-            <SelectItem value="FAILED">Failed</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="hidden md:block overflow-hidden rounded-lg border border-border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Recipient</TableHead>
-              <TableHead>Subject</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visible.map((message) => (
-              <TableRow key={message.id}>
-                <TableCell>
-                  <Link href={`/emails/${message.id}`} className="font-medium hover:text-primary">
-                    {message.recipient}
-                  </Link>
-                </TableCell>
-                <TableCell className="max-w-xs truncate">{message.subject}</TableCell>
-                <TableCell>
-                  <EmailStatusBadge status={message.status} />
-                </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {formatDateTime(message.createdAt)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="space-y-3 md:hidden">
-        {visible.map((message) => (
-          <Link key={message.id} href={`/emails/${message.id}`}>
-            <Card className="p-4 transition-colors hover:bg-muted/40">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{message.recipient}</p>
-                  <p className="mt-1 truncate text-sm text-muted-foreground">{message.subject}</p>
-                </div>
-                <EmailStatusBadge status={message.status} />
-              </div>
-              <p className="mt-2 font-mono text-xs text-muted-foreground">{formatDateTime(message.createdAt)}</p>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      <Pagination page={currentPage} pageCount={pageCount} onPageChange={setPage} />
-    </div>
-  );
+const columns: DataGridColumn<EmailMessage>[] = [
+  { key: "recipient", label: "Recipient", sortable: true, filterable: true, fixed: true, render: row => <Link href={`/emails/${row.id}`} className="font-medium text-green-600 hover:underline">{row.recipient}</Link> },
+  { key: "subject", label: "Subject", sortable: true, filterable: true },
+  { key: "status", label: "Status", sortable: true, filterable: true, render: row => <EmailStatusBadge status={row.status} /> },
+  { key: "createdAt", label: "Created At", sortable: true, sortType: "date", render: row => formatDateTime(row.createdAt) },
+  { key: "id", label: "Message ID", sortable: true },
+  { key: "actions", label: "Actions", fixed: true, render: row => <Button asChild variant="outline" size="sm"><Link href={`/emails/${row.id}`}>View</Link></Button> },
+];
+export function EmailTable({ messages, server, loading, toolbarActions }: { messages: EmailMessage[]; server?: DataGridProps<EmailMessage>["server"]; loading?: boolean; toolbarActions?: ReactNode }) {
+  return <DataGrid pageName="email-messages" columns={server ? columns.map(column => ({ ...column, sortable: false, filterable: false })) : columns} rows={messages} rowKey={row => row.id} entityName="Emails" server={server} loading={loading} totalCountLabel={server?.total ?? messages.length} toolbarActions={toolbarActions} searchPlaceholder="Search recipient, subject, or message ID" emptyTitle="No emails found" emptyMessage="Send your first email or adjust your filters." />;
 }

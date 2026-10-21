@@ -33,6 +33,7 @@ public class EmailDeliveryProcessor {
     private final EmailQueuePublisher emailQueuePublisher;
     private final SuppressionService suppressionService;
     private final WebhookEventPublisher webhookEventPublisher;
+    private final com.texto.emailplatform.attachment.AttachmentService attachments;
 
     public EmailDeliveryProcessor(
             EmailMessageRepository emailMessageRepository,
@@ -42,22 +43,44 @@ public class EmailDeliveryProcessor {
             SuppressionService suppressionService,
             WebhookEventPublisher webhookEventPublisher
     ) {
+        this(emailMessageRepository, deliveryAttemptRepository, deliveryEngine, emailQueuePublisher, suppressionService, webhookEventPublisher, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public EmailDeliveryProcessor(
+            EmailMessageRepository emailMessageRepository,
+            DeliveryAttemptRepository deliveryAttemptRepository,
+            DeliveryEngine deliveryEngine,
+            EmailQueuePublisher emailQueuePublisher,
+            SuppressionService suppressionService,
+            WebhookEventPublisher webhookEventPublisher,
+            com.texto.emailplatform.attachment.AttachmentService attachments
+    ) {
         this.emailMessageRepository = emailMessageRepository;
         this.deliveryAttemptRepository = deliveryAttemptRepository;
         this.deliveryEngine = deliveryEngine;
         this.emailQueuePublisher = emailQueuePublisher;
         this.suppressionService = suppressionService;
         this.webhookEventPublisher = webhookEventPublisher;
+        this.attachments = attachments;
     }
 
     @Transactional
     public void process(UUID messageId, UUID tenantId, int attempt) {
-        EmailMessageEntity message = emailMessageRepository.findByIdAndTenantId(messageId, tenantId).orElse(null);
+        EmailMessageEntity message = emailMessageRepository.lockByIdAndTenantId(messageId, tenantId).orElse(null);
         if (message == null) {
             log.warn("Email message {} not found for tenant {}", messageId, tenantId);
             return;
         }
         if (MessageStateMachine.isTerminal(message.getStatus())) {
+            return;
+        }
+
+        if (message.getMetadata().containsKey("campaignId")
+                && java.util.stream.Stream.of(message.getRecipientsTo(), message.getRecipientsCc(), message.getRecipientsBcc())
+                    .flatMap(java.util.Collection::stream).anyMatch(email -> suppressionService.isSuppressed(tenantId, email))) {
+            message.markSuppressed("unsubscribed_or_suppressed_before_delivery");
+            emailMessageRepository.save(message);
             return;
         }
 
@@ -106,7 +129,9 @@ public class EmailDeliveryProcessor {
             emailMessageRepository.save(message);
         }
 
-        DeliveryEngine.DeliveryResult result = deliveryEngine.deliver(new DeliveryEngine.DeliveryRequest(
+        DeliveryEngine.DeliveryResult result;
+        try {
+        result = deliveryEngine.deliver(new DeliveryEngine.DeliveryRequest(
                 tenantId,
                 message.getFromAddress(),
                 message.getRecipientsTo(),
@@ -116,8 +141,16 @@ public class EmailDeliveryProcessor {
                 message.getSubject(),
                 message.getTextBody(),
                 message.getHtmlBody(),
-                message.getBounceCorrelationToken()
+                message.getBounceCorrelationToken(),
+                message.getMetadata().get("campaignUnsubscribeUrl") instanceof String url ? url : null,
+                message.getMetadata().containsKey("attachmentIds") ? attachments.load(tenantId,message.getMetadata().get("attachmentIds")) : java.util.List.of()
         ));
+        } catch(com.texto.emailplatform.common.exception.ApiException exception) {
+            if(!exception.getCode().startsWith("ATTACHMENT")) throw exception;
+            result=exception.getStatus()==503
+                    ? DeliveryEngine.DeliveryResult.temporary("attachment_unavailable",exception.getMessage(),null)
+                    : DeliveryEngine.DeliveryResult.permanent("attachment_unavailable",exception.getMessage(),null);
+        }
         message.recordRfc822MessageId(result.rfc822MessageId());
 
         switch (result.outcome()) {
@@ -189,9 +222,10 @@ public class EmailDeliveryProcessor {
         attemptEntity.completePermanent(result.errorCategory(), result.errorMessage(), result.providerResponse());
         deliveryAttemptRepository.save(attemptEntity);
 
-        boolean bounce = "550".equals(result.smtpCode())
-                || (result.errorMessage() != null && result.errorMessage().contains("550"))
-                || (result.errorCategory() != null && result.errorCategory().contains("550"));
+        // SES credentials, identity/configuration rejection, DKIM failures and the public
+        // delivery kill switch also use synthetic 550 codes. They are not recipient bounces.
+        // SES recipient bounces arrive through the verified feedback ingestion path.
+        boolean bounce = "550".equals(result.smtpCode()) && "smtp_550".equals(result.errorCategory());
         if (bounce) {
             message.markBounced(
                     result.errorCategory() == null ? "permanent_bounce" : result.errorCategory(),

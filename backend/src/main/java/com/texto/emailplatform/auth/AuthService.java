@@ -57,12 +57,29 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        ProvisionedAccount account = createAccount(request, "FREE");
+        return issueSession(account.user(), account.tenant());
+    }
+
+    /** Admin provisioning creates the owner without creating or adopting an owner session. */
+    @Transactional
+    public AuthUserResponse provisionTenant(RegisterRequest request, String planCode) {
+        ProvisionedAccount account = createAccount(request, planCode);
+        UserEntity user = account.user();
+        TenantEntity tenant = account.tenant();
+        return new AuthUserResponse(user.getId(), tenant.getId(), user.getEmail(), user.getRole(),
+                tenant.getName(), tenant.getSlug());
+    }
+
+    private record ProvisionedAccount(UserEntity user, TenantEntity tenant) {}
+
+    private ProvisionedAccount createAccount(RegisterRequest request, String planCode) {
         String email = request.email().trim();
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new ApiException(HttpStatus.CONFLICT.value(), "EMAIL_ALREADY_REGISTERED", "An account with this email already exists");
         }
 
-        TenantEntity tenant = tenantRepository.save(TenantEntity.create(request.organization(), uniqueSlug(request.organization())));
+        TenantEntity tenant = tenantRepository.save(TenantEntity.create(request.organization().trim(), uniqueSlug(request.organization().trim())));
         String displayName = displayNameFromEmail(email);
         UserEntity user = userRepository.save(UserEntity.create(
                 tenant.getId(),
@@ -71,8 +88,8 @@ public class AuthService {
                 displayName,
                 TenantRoles.OWNER
         ));
-        subscriptionService.createFreeForTenant(tenant.getId());
-        return issueSession(user, tenant);
+        subscriptionService.createForTenant(tenant.getId(), planCode);
+        return new ProvisionedAccount(user, tenant);
     }
 
     @Transactional
@@ -83,6 +100,9 @@ public class AuthService {
                 .orElseThrow(AuthService::authenticationFailed);
         TenantEntity tenant = tenantRepository.findById(principal.tenantId())
                 .orElseThrow(AuthService::authenticationFailed);
+        if (!TenantEntity.STATUS_ACTIVE.equals(tenant.getStatus())) {
+            throw authenticationFailed();
+        }
         return issueSession(user, tenant);
     }
 
@@ -108,7 +128,9 @@ public class AuthService {
                 .filter(session -> !session.isExpired())
                 .flatMap(session -> userRepository.findById(session.getUserId())
                         .filter(user -> "ACTIVE".equals(user.getStatus()))
-                        .map(user -> new DashboardPrincipal(user.getId(), user.getTenantId(), user.getEmail(), user.getRole())));
+                    .flatMap(user -> tenantRepository.findById(user.getTenantId())
+                        .filter(tenant -> TenantEntity.STATUS_ACTIVE.equals(tenant.getStatus()))
+                        .map(tenant -> new DashboardPrincipal(user.getId(), user.getTenantId(), user.getEmail(), user.getRole()))));
     }
 
     @Transactional(readOnly = true)

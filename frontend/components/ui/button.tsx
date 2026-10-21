@@ -5,26 +5,23 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-[color,background-color,box-shadow,transform,opacity,border-color] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110 active:translate-y-px active:scale-95",
+  "group/button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4",
   {
     variants: {
       variant: {
-        primary:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover hover:shadow-md hover:-translate-y-0.5 [box-shadow:inset_0_1px_0_oklch(1_0_0_/_0.22),0_1px_2px_oklch(0.3_0.1_275_/_0.22)]",
-        secondary:
-          "border border-border/80 bg-card/90 text-foreground shadow-xs hover:bg-muted hover:shadow-sm hover:-translate-y-0.5 hover:border-primary/30",
-        ghost: "text-foreground hover:bg-muted/80 hover:text-primary",
-        outline: "border border-border bg-transparent text-foreground shadow-xs hover:bg-muted hover:border-primary/30 hover:-translate-y-0.5",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 hover:shadow-md hover:-translate-y-0.5",
-        link: "text-primary underline-offset-4 hover:underline hover:text-primary-hover",
+        primary: "bg-emerald-600 text-white hover:bg-emerald-700",
+        secondary: "border-border bg-background text-foreground hover:bg-muted",
+        ghost: "text-foreground hover:bg-muted",
+        outline: "border-border bg-background text-foreground hover:bg-muted",
+        destructive: "bg-destructive/10 text-destructive hover:bg-destructive/20",
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        sm: "h-8 px-3 text-xs",
-        md: "h-9 px-3.5",
-        lg: "h-10 px-4",
-        icon: "size-9",
-        "icon-sm": "size-8",
+        sm: "h-7 gap-1 px-2.5 text-[0.8rem]",
+        md: "h-8 px-2.5",
+        lg: "h-9 px-2.5",
+        icon: "size-8",
+        "icon-sm": "size-7",
       },
     },
     defaultVariants: {

@@ -77,9 +77,14 @@ public class SecurityConfiguration {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    // Streaming responses resume after the authenticated request thread is released.
+                    // Their data scope is captured by the authorized controller before async dispatch.
+                    auth.dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
+                            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                             .requestMatchers("/api/v1/status").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/v1/public/unsubscribe/*").permitAll()
+                            .requestMatchers(HttpMethod.POST, "/api/v1/public/unsubscribe/*").permitAll()
                             .requestMatchers("/api/v1/plans", "/api/v1/plans/**").permitAll()
                             .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
                             .requestMatchers(HttpMethod.POST, "/api/v1/admin/auth/login").permitAll()

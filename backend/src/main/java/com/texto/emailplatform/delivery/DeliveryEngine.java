@@ -20,8 +20,19 @@ public interface DeliveryEngine {
             String subject,
             String textBody,
             String htmlBody,
-            String bounceCorrelationToken
+            String bounceCorrelationToken,
+            String unsubscribeUrl,
+            List<DeliveryAttachment> attachments
     ) {
+        public DeliveryRequest(java.util.UUID tenantId, String from, List<String> to, List<String> cc,
+                List<String> bcc, String replyTo, String subject, String textBody, String htmlBody, String bounceCorrelationToken, String unsubscribeUrl) {
+            this(tenantId, from, to, cc, bcc, replyTo, subject, textBody, htmlBody, bounceCorrelationToken, unsubscribeUrl, List.of());
+        }
+        public DeliveryRequest(java.util.UUID tenantId, String from, List<String> to, List<String> cc,
+                List<String> bcc, String replyTo, String subject, String textBody, String htmlBody, String bounceCorrelationToken) {
+            this(tenantId, from, to, cc, bcc, replyTo, subject, textBody, htmlBody, bounceCorrelationToken, null);
+        }
+
         public DeliveryRequest(
                 java.util.UUID tenantId,
                 String from,
@@ -36,6 +47,8 @@ public interface DeliveryEngine {
             this(tenantId, from, to, cc, bcc, replyTo, subject, textBody, htmlBody, null);
         }
     }
+
+    record DeliveryAttachment(String filename,String contentType,byte[] content) {}
 
     enum Outcome {
         SUCCESS,

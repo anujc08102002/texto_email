@@ -11,6 +11,9 @@ import java.util.UUID;
 @Table(name = "tenants")
 public class TenantEntity {
 
+    public static final String STATUS_ACTIVE = "ACTIVE";
+    public static final String STATUS_SUSPENDED = "SUSPENDED";
+
     @Id
     @Column(name = "id", nullable = false)
     private UUID id;
@@ -56,6 +59,11 @@ public class TenantEntity {
 
     public String getStatus() {
         return status;
+    }
+
+    public void setAccessEnabled(boolean enabled) {
+        status = enabled ? STATUS_ACTIVE : STATUS_SUSPENDED;
+        updatedAt = Instant.now();
     }
 
     public Instant getCreatedAt() {

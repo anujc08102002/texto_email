@@ -1,0 +1,2 @@
+package com.texto.emailplatform.campaign.domain; import java.util.*; import org.springframework.data.jpa.repository.*;
+public interface CampaignScheduleRepository extends JpaRepository<CampaignScheduleEntity,UUID>{@Modifying @Query("update CampaignScheduleEntity s set s.status='INVALIDATED',s.invalidatedAt=CURRENT_TIMESTAMP,s.updatedAt=CURRENT_TIMESTAMP where s.campaignId=?1 and s.status='ACTIVE'")void invalidateActive(UUID campaignId);}

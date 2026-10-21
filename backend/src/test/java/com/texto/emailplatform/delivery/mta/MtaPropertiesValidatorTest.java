@@ -9,6 +9,13 @@ import org.junit.jupiter.api.Test;
 class MtaPropertiesValidatorTest {
 
     @Test
+    void rejectsPlaceholderConfigurationSetBeforeSesCanRejectAQueuedCampaign() {
+        var properties = sesProperties();
+        properties.getSes().setConfigurationSetName("YOUR_CONFIGURATION_SET_NAME");
+        assertThatThrownBy(() -> MtaPropertiesValidator.validate(properties, true)).hasMessageContaining("placeholder");
+    }
+
+    @Test
     void unknownImplementationFailsFast() {
         EmailPlatformProperties properties = properties("sendgrid");
         assertThatThrownBy(() -> MtaPropertiesValidator.validate(properties, false))

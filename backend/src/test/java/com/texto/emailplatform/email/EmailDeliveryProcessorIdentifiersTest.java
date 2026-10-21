@@ -36,6 +36,37 @@ class EmailDeliveryProcessorIdentifiersTest {
     @Mock
     private WebhookEventPublisher webhookEventPublisher;
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"ses_credentials", "ses_access_denied", "ses_invalid_request", "ses_message_rejected", "dkim_signing_failed", "public_delivery_disabled"})
+    void infrastructureFailuresNeverSuppressHealthyRecipients(String category) {
+        UUID tenant = UUID.randomUUID();
+        var message = EmailMessageEntity.create(tenant, "sender@example.test", List.of("a@example.test"),
+                List.of(), List.of(), List.of(), null, "Hello", null, "Hello", null, null, null, Map.of(), 5, null);
+        when(emailMessageRepository.lockByIdAndTenantId(message.getId(), tenant)).thenReturn(Optional.of(message));
+        when(emailMessageRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(deliveryAttemptRepository.findByMessageIdAndTenantIdOrderByAttemptNumberAsc(message.getId(), tenant)).thenReturn(List.of());
+        when(deliveryAttemptRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(deliveryEngine.deliver(any())).thenReturn(DeliveryEngine.DeliveryResult.permanent(category, "550 submission rejected", "550"));
+        new EmailDeliveryProcessor(emailMessageRepository, deliveryAttemptRepository, deliveryEngine,
+                emailQueuePublisher, suppressionService, webhookEventPublisher).process(message.getId(), tenant, 1);
+        assertThat(message.getStatus()).isEqualTo("FAILED");
+        org.mockito.Mockito.verifyNoInteractions(suppressionService);
+    }
+
+    @Test
+    void unsubscribeAfterQueueAcceptancePreventsSmtpSubmission() {
+        UUID tenant = UUID.randomUUID();
+        var message = EmailMessageEntity.create(tenant, "sender@example.test", List.of("a@example.test"),
+                List.of(), List.of(), List.of(), null, "Hello", null, "Hello", null, null, null,
+                Map.of("campaignId", UUID.randomUUID().toString()), 5, null);
+        when(emailMessageRepository.lockByIdAndTenantId(message.getId(), tenant)).thenReturn(Optional.of(message));
+        when(suppressionService.isSuppressed(tenant, "a@example.test")).thenReturn(true);
+        new EmailDeliveryProcessor(emailMessageRepository, deliveryAttemptRepository, deliveryEngine,
+                emailQueuePublisher, suppressionService, webhookEventPublisher).process(message.getId(), tenant, 1);
+        assertThat(message.getStatus()).isEqualTo("SUPPRESSED");
+        org.mockito.Mockito.verifyNoInteractions(deliveryEngine, deliveryAttemptRepository);
+    }
+
     @Test
     void successfulDeliveryStoresProviderIdRfc822IdAndKeepsBounceToken() {
         UUID tenantId = UUID.randomUUID();
@@ -60,7 +91,7 @@ class EmailDeliveryProcessorIdentifiersTest {
         String token = message.getBounceCorrelationToken();
         assertThat(token).isNotBlank();
 
-        when(emailMessageRepository.findByIdAndTenantId(message.getId(), tenantId)).thenReturn(Optional.of(message));
+        when(emailMessageRepository.lockByIdAndTenantId(message.getId(), tenantId)).thenReturn(Optional.of(message));
         when(emailMessageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(deliveryAttemptRepository.findByMessageIdAndTenantIdOrderByAttemptNumberAsc(message.getId(), tenantId))
                 .thenReturn(List.of());

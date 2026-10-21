@@ -1,5 +1,6 @@
 "use client";
 
+import { AttachmentPicker } from "@/components/attachments/attachment-picker";
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -37,6 +38,8 @@ function escapeHtml(value: string) {
 
 export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
   const router = useRouter();
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [from, setFrom] = useState("");
   const [fromOptions, setFromOptions] = useState<string[]>([]);
   const [to, setTo] = useState<string[]>(defaultTo ? [defaultTo] : []);
@@ -56,7 +59,7 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
     to.length > 0 &&
     subject.trim().length > 0 &&
     body.trim().length > 0 &&
-    !quotaBlocked;
+    !quotaBlocked && !attachmentBusy;
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +128,7 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
     try {
       const queued = await sendEmail(
         {
+          metadata: { attachmentIds },
           from: from.trim(),
           to,
           cc: cc.length ? cc : undefined,
@@ -251,12 +255,13 @@ export function EmailComposer({ defaultTo = "" }: { defaultTo?: string }) {
               />
             </TabsContent>
           </Tabs>
+          <AttachmentPicker value={attachmentIds} onChange={setAttachmentIds} onBusyChange={setAttachmentBusy} />
         </SectionPanel>
 
         <div className="space-y-4">
           <SectionPanel title="Preview" elevated>
             <p className="mb-3 truncate text-sm font-medium">{subject || "Untitled message"}</p>
-            <HtmlPreview html={previewHtml} title="Message preview" className="h-56 w-full rounded-xl border border-border/70 bg-white sm:h-72" />
+            <HtmlPreview html={previewHtml} title="Message preview" />
           </SectionPanel>
           <SectionPanel title="Send summary">
             <dl className="space-y-3 text-sm">

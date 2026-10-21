@@ -21,9 +21,16 @@ management:
       show-components: when-authorized
 
 email-platform:
+  attachments:
+    filesystem-enabled: ${EMAIL_ATTACHMENT_STORAGE_ENABLED:false}
+    filesystem-root: ${EMAIL_ATTACHMENT_ROOT:}
+  campaign:
+    public-base-url: ${EMAIL_PUBLIC_BASE_URL}
   ses-feedback:
-    enabled: ${SES_FEEDBACK_ENABLED}
-    queue-url: ${SES_FEEDBACK_QUEUE_URL}
+    # Feedback ingestion is optional. Outbound SES delivery must not fail merely
+    # because a feedback queue has not been provisioned yet.
+    enabled: ${SES_FEEDBACK_ENABLED:false}
+    queue-url: ${SES_FEEDBACK_QUEUE_URL:}
     max-messages: ${SES_FEEDBACK_MAX_MESSAGES:10}
     wait-seconds: ${SES_FEEDBACK_WAIT_SECONDS:20}
     visibility-timeout-seconds: ${SES_FEEDBACK_VISIBILITY_TIMEOUT_SECONDS:120}

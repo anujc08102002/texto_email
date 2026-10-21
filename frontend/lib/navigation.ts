@@ -36,22 +36,53 @@ export type NavSection = {
   items: NavItem[];
 };
 
-/** Tenant workspace navigation — IA aligned to Workspace / Developer / Analytics / Account */
+/**
+ * Tenant navigation follows the Textonext product hierarchy, translated to
+ * email concepts. Entries are deliberately limited to working routes.
+ */
 export const NAV_SECTIONS: NavSection[] = [
   {
-    id: "workspace",
-    label: "Workspace",
+    id: "main",
+    label: "Main",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, keywords: ["home", "overview"] },
-      { href: "/emails", label: "Emails", icon: Mail, keywords: ["messages", "send", "inbox"] },
-      { href: "/templates", label: "Templates", icon: FileCode2, keywords: ["html"] },
-      { href: "/domains", label: "Domains", icon: Globe, keywords: ["dns", "spf", "dkim"] },
-      { href: "/campaigns", label: "Campaigns", icon: Megaphone, keywords: ["broadcast"] },
     ],
   },
   {
-    id: "developer",
-    label: "Developer",
+    id: "personalize",
+    label: "Personalize",
+    items: [
+      { href: "/templates", label: "Templates", icon: FileCode2, keywords: ["html", "content"] },
+      { href: "/contacts", label: "Contacts", icon: Users, keywords: ["profiles", "recipients"] },
+      { href: "/segments", label: "Segments", icon: Users, keywords: ["filters", "audiences"] },
+    ],
+  },
+  {
+    id: "promotions",
+    label: "Promotions",
+    items: [
+      { href: "/campaigns", label: "Campaigns", icon: Megaphone, keywords: ["broadcast", "draft"] },
+      { href: "/emails", label: "Emails", icon: Mail, keywords: ["messages", "send", "inbox"] },
+    ],
+  },
+  {
+    id: "email",
+    label: "Email",
+    items: [
+      { href: "/domains", label: "Domains", icon: Globe, keywords: ["dns", "spf", "dkim"] },
+      { href: "/suppressions", label: "Suppressions", icon: Ban, keywords: ["bounces", "complaints"] },
+    ],
+  },
+  {
+    id: "plans",
+    label: "Plans",
+    items: [
+      { href: "/billing", label: "Subscription & usage", icon: CreditCard, keywords: ["plans", "invoice", "usage"] },
+    ],
+  },
+  {
+    id: "integrations",
+    label: "Integrations",
     items: [
       { href: "/api-keys", label: "API Keys", icon: KeyRound, keywords: ["token", "secret"] },
       { href: "/webhooks", label: "Webhooks", icon: Webhook, keywords: ["events", "endpoint"] },
@@ -62,14 +93,6 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Analytics",
     items: [
       { href: "/analytics", label: "Analytics", icon: BarChart3, keywords: ["reports", "metrics"] },
-      { href: "/suppressions", label: "Suppressions", icon: Ban, keywords: ["bounces", "complaints"] },
-    ],
-  },
-  {
-    id: "account",
-    label: "Account",
-    items: [
-      { href: "/billing", label: "Billing", icon: CreditCard, keywords: ["plans", "invoice", "usage"] },
       { href: "/settings", label: "Settings", icon: Settings, keywords: ["profile", "theme"] },
     ],
   },
@@ -79,7 +102,7 @@ export const NAV_SECTIONS: NavSection[] = [
 export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: "overview",
-    label: "Overview",
+    label: "Main",
     items: [
       { href: "/admin", label: "Dashboard", icon: Shield, keywords: ["home", "ops", "health"] },
       { href: "/admin/traffic", label: "Traffic", icon: Activity, keywords: ["http", "requests"] },
@@ -87,7 +110,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   },
   {
     id: "delivery",
-    label: "Delivery",
+    label: "Email delivery",
     items: [
       { href: "/admin/emails", label: "Email explorer", icon: Mail, keywords: ["messages", "delivery"] },
       { href: "/admin/bounces", label: "Bounces", icon: AlertOctagon, keywords: ["dsn", "failed"] },
@@ -97,7 +120,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   },
   {
     id: "directory",
-    label: "Directory",
+    label: "Functionality",
     items: [
       { href: "/admin/tenants", label: "Tenants", icon: Building2, keywords: ["accounts", "customers"] },
       { href: "/admin/domains", label: "Domains", icon: Globe, keywords: ["dns", "spf", "dkim", "dmarc"] },
@@ -106,7 +129,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   },
   {
     id: "infrastructure",
-    label: "Infrastructure",
+    label: "Configuration",
     items: [
       { href: "/admin/queues", label: "Queues", icon: Inbox, keywords: ["rabbitmq", "outbox", "dlq"] },
       { href: "/admin/system", label: "System", icon: HeartPulse, keywords: ["health", "redis", "postgres", "ses"] },
@@ -115,7 +138,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   },
   {
     id: "governance",
-    label: "Governance",
+    label: "Governance & audit",
     items: [
       { href: "/admin/audit", label: "Audit log", icon: ClipboardList, keywords: ["history"] },
     ],

@@ -69,10 +69,39 @@ final class MimeMessageComposer {
         signedHeaders.put("subject", headerValue(request.subject()));
         signedHeaders.put("date", DkimSigner.dateHeader(java.time.Instant.now()));
         signedHeaders.put("message-id", messageId);
+        if (request.unsubscribeUrl() != null) {
+            java.net.URI url = java.net.URI.create(request.unsubscribeUrl());
+            if (url.getHost() == null || url.getRawUserInfo() != null || request.unsubscribeUrl().matches("(?s).*[\\r\\n<>].*")
+                    || !("https".equals(url.getScheme()) || ("http".equals(url.getScheme()) && ("localhost".equals(url.getHost()) || "127.0.0.1".equals(url.getHost()))))) {
+                throw new IllegalArgumentException("Invalid unsubscribe URL");
+            }
+            signedHeaders.put("list-unsubscribe", "<" + request.unsubscribeUrl() + ">");
+            signedHeaders.put("list-unsubscribe-post", "List-Unsubscribe=One-Click");
+        }
         signedHeaders.put("mime-version", "1.0");
-        signedHeaders.put("content-type", contentType);
-
         String body = renderBody(request, boundary, hasHtml, hasText);
+        boolean mixed = request.attachments() != null && !request.attachments().isEmpty();
+        if (mixed) {
+            String mixedBoundary = "texto-mixed-" + UUID.randomUUID();
+            StringBuilder parts = new StringBuilder();
+            appendLine(parts,"--"+mixedBoundary);
+            appendLine(parts,"Content-Type: "+contentType);
+            if (!(hasHtml && hasText)) appendLine(parts,"Content-Transfer-Encoding: 8bit");
+            appendLine(parts,""); appendBody(parts,body);
+            for (var attachment : request.attachments()) {
+                appendLine(parts,"--"+mixedBoundary);
+                appendLine(parts,"Content-Type: "+headerValue(attachment.contentType()));
+                appendLine(parts,"Content-Transfer-Encoding: base64");
+                String encodedName = java.net.URLEncoder.encode(attachment.filename(), StandardCharsets.UTF_8).replace("+","%20");
+                appendLine(parts,"Content-Disposition: attachment; filename*=UTF-8''"+encodedName);
+                appendLine(parts,"");
+                appendLine(parts,java.util.Base64.getMimeEncoder(76,new byte[]{10}).encodeToString(attachment.content()));
+            }
+            appendLine(parts,"--"+mixedBoundary+"--");
+            contentType="multipart/mixed; boundary=\""+mixedBoundary+"\"";
+            body=parts.toString();
+        }
+        signedHeaders.put("content-type", contentType);
 
         StringBuilder rfc822 = new StringBuilder();
         if (applicationDkimEnabled) {
@@ -93,12 +122,16 @@ final class MimeMessageComposer {
         if (signedHeaders.containsKey("reply-to")) {
             appendHeader(rfc822, "Reply-To", signedHeaders.get("reply-to"));
         }
+        if (signedHeaders.containsKey("list-unsubscribe")) {
+            appendHeader(rfc822, "List-Unsubscribe", signedHeaders.get("list-unsubscribe"));
+            appendHeader(rfc822, "List-Unsubscribe-Post", signedHeaders.get("list-unsubscribe-post"));
+        }
         appendHeader(rfc822, "Subject", signedHeaders.get("subject"));
         appendHeader(rfc822, "Date", signedHeaders.get("date"));
         appendHeader(rfc822, "Message-ID", signedHeaders.get("message-id"));
         appendHeader(rfc822, "MIME-Version", signedHeaders.get("mime-version"));
         appendHeader(rfc822, "Content-Type", signedHeaders.get("content-type"));
-        if (!hasHtml || !hasText) {
+        if (!mixed && (!hasHtml || !hasText)) {
             appendHeader(rfc822, "Content-Transfer-Encoding", "8bit");
         }
         rfc822.append(CRLF);

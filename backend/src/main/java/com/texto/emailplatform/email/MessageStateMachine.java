@@ -23,9 +23,9 @@ public final class MessageStateMachine {
 
     private static final Map<String, Set<String>> ALLOWED = Map.ofEntries(
             Map.entry(QUEUED, Set.of(PROCESSING, SUPPRESSED, CANCELLED, EXPIRED)),
-            Map.entry(PROCESSING, Set.of(SENDING, FAILED, CANCELLED)),
-            Map.entry(SENDING, Set.of(DELIVERED, DEFERRED, FAILED, BOUNCED)),
-            Map.entry(DEFERRED, Set.of(QUEUED, PROCESSING, FAILED, EXPIRED, BOUNCED)),
+            Map.entry(PROCESSING, Set.of(SENDING, FAILED, CANCELLED, SUPPRESSED)),
+            Map.entry(SENDING, Set.of(DELIVERED, DEFERRED, FAILED, BOUNCED, SUPPRESSED)),
+            Map.entry(DEFERRED, Set.of(QUEUED, PROCESSING, FAILED, EXPIRED, BOUNCED, SUPPRESSED)),
             Map.entry(DELIVERED, Set.of(BOUNCED)),
             Map.entry(FAILED, Set.of()),
             Map.entry(BOUNCED, Set.of()),

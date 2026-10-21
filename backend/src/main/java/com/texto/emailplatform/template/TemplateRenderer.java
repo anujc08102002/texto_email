@@ -84,9 +84,13 @@ public class TemplateRenderer {
 
         return new RenderedTemplate(
                 replace(subject, replacements),
-                replace(htmlContent, replacements),
+                replace(htmlContent, replacements.entrySet().stream().collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, entry -> escapeHtml(entry.getValue())))),
                 textContent == null ? null : replace(textContent, replacements)
         );
+    }
+
+    private static String escapeHtml(String value) {
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;");
     }
 
     private static boolean isRequired(Object schemaNode) {

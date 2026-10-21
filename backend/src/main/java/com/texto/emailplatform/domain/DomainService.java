@@ -146,6 +146,10 @@ public class DomainService {
         domainVerificationRateLimiter.check(tenantId, domainId);
         DomainEntity entity = requireOwned(domainId);
         if (PlatformSenderDomains.isPlatformTestDomain(entity.getDomain())) {
+            if (!properties.getDomains().isAllowPlatformTestSenders()) {
+                throw new ApiException(HttpStatus.FORBIDDEN.value(), "PLATFORM_TEST_SENDERS_DISABLED",
+                        "Platform test domains cannot be verified in this environment");
+            }
             domainVerificationService.markRecordsVerified(entity);
             entity.markVerified();
             return toResponse(domainRepository.save(entity));
@@ -221,6 +225,11 @@ public class DomainService {
                     return;
                 }
             }
+        }
+
+        if (PlatformSenderDomains.isPlatformTestDomain(host)) {
+            throw new ApiException(HttpStatus.FORBIDDEN.value(), "PLATFORM_TEST_SENDERS_DISABLED",
+                    "Platform test domains cannot send in this environment");
         }
 
         DomainEntity domain = domainRepository.findByTenantIdAndDomain(tenantId, host)

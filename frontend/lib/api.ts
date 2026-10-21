@@ -93,6 +93,24 @@ export async function apiPost<T>(path: string, body?: unknown, extraHeaders?: Re
   );
 }
 
+/** Credential exchange must not carry a stale dashboard bearer token. */
+export async function apiPostAnonymous<T>(path: string, body: unknown): Promise<T> {
+  return parseResponse<T>(await request(path, {
+    method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+  return parseResponse<T>(
+    await request(path, {
+      method: "POST",
+      headers: headers(),
+      body,
+    }),
+  );
+}
+
 export async function apiPostEmpty(path: string, body?: unknown): Promise<void> {
   await parseEmpty(
     await request(path, {
@@ -119,4 +137,14 @@ export async function apiDelete<T>(path: string): Promise<T> {
 
 export async function apiDeleteEmpty(path: string): Promise<void> {
   await parseEmpty(await request(path, { method: "DELETE", headers: headers() }));
+}
+
+/** Authenticated file download without exposing bearer tokens in URLs. */
+export async function apiDownload(path: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers: headers(), credentials: "include" });
+  if (!response.ok) {
+    const payload = await readPayload<unknown>(response);
+    throw new ApiClientError(errorMessage(payload, "Download failed"), response.status, payload.error?.code);
+  }
+  return response.blob();
 }

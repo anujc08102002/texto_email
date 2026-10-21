@@ -21,6 +21,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Time;
+import java.sql.Timestamp;
+
 @Service
 public class AnalyticsService {
     private static final Duration MAX_RANGE = Duration.ofDays(90);
@@ -42,6 +45,9 @@ public class AnalyticsService {
         LocalDate start = from.atZone(ZoneOffset.UTC).toLocalDate();
         LocalDate end = to.atZone(ZoneOffset.UTC).toLocalDate();
         for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) buckets.put(day, new long[8]);
+
+        Timestamp fromTimestamp = Timestamp.from(from);
+        Timestamp toTimestamp = Timestamp.from(to);
 
         jdbc.query("""
                 SELECT (created_at AT TIME ZONE 'UTC')::date AS day,
@@ -68,7 +74,7 @@ public class AnalyticsService {
             values[4] = rs.getLong("failed");
             values[5] = rs.getLong("bounced");
             values[7] = rs.getLong("suppressed");
-        }, tenantId, from, to);
+        }, tenantId, fromTimestamp, toTimestamp);
 
 
         jdbc.query("""
@@ -81,7 +87,7 @@ public class AnalyticsService {
             LocalDate day = rs.getObject("day", LocalDate.class);
             long[] values = buckets.computeIfAbsent(day, ignored -> new long[8]);
             values[6] = rs.getLong("complained");
-        }, tenantId, from, to);
+        }, tenantId, fromTimestamp, toTimestamp);
 
 
         // IMPORTANT: outside both query callbacks

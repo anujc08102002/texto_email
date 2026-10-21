@@ -42,6 +42,17 @@ class DomainDnsAuthenticationTest {
     }
 
     @Test
+    void spfAllowsMergedIncludesButRejectsUnreachableOrNegativeAuthorization() {
+        assertThat(SpfRecord.match(List.of("v=spf1 include:_spf.google.com include:amazonses.com ~all"), "amazonses.com", "~").isMatched()).isTrue();
+        assertThat(SpfRecord.match(List.of("v=spf1 +include:amazonses.com include:_spf.google.com ~all"), "amazonses.com", "~").isMatched()).isTrue();
+        for (String bad : List.of("v=spf1 -all include:amazonses.com ~all", "v=spf1 -include:amazonses.com ~all",
+                "v=spf1 include:amazonses.com ~all include:other.example", "v=spf1 include:amazonses.com +all",
+                "v=spf1 include:amazonses.com redirect=other.example ~all")) {
+            assertThat(SpfRecord.match(List.of(bad), "amazonses.com", "~").isMatched()).as(bad).isFalse();
+        }
+    }
+
+    @Test
     void dkimJoinsTxtChunksAndRequiresMatchingPublicKey() {
         String key = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA";
         String generated = DkimDnsRecord.generate(key);

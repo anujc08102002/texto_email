@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Brand } from "@/components/layout/brand";
+import { ShieldCheck } from "lucide-react";
+import { AuthFrame } from "@/components/layout/auth-frame";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,46 +54,23 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="grid min-h-dvh lg:grid-cols-2">
-      <aside className="bg-rail relative hidden overflow-hidden px-12 py-10 text-sidebar-foreground lg:flex lg:flex-col">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-16 top-0 h-72 w-72 rounded-full bg-primary/35 blur-3xl" />
-        </div>
-        <Brand href="/" inverted />
-        <div className="relative mt-auto max-w-md pb-6">
-          <p className="inline-flex rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase">
-            Control plane
-          </p>
-          <p className="font-display mt-5 text-4xl leading-[1.05] tracking-tight">
-            Tenant oversight, billing ops, and platform controls.
-          </p>
-        </div>
-      </aside>
-      <div className="bg-app flex min-h-dvh flex-col justify-center px-5 py-10 sm:px-8">
-        <div className="mx-auto w-full max-w-[26rem]">
-          <div className="mb-8 lg:hidden">
-            <Brand href="/admin/login" />
+    <AuthFrame>
+          <div className="mb-8 text-center">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700"><ShieldCheck className="size-3.5" /> Secure Admin Login</span>
+            <h1 className="mb-2 text-3xl font-extrabold tracking-tight text-slate-900">Welcome back</h1>
+            <p className="text-sm leading-relaxed text-slate-500">Manage your TEXTO email platform and tenant workspaces.</p>
           </div>
-          <p className="tech-label text-primary">Platform admin</p>
-          <h1 className="font-display mt-2 text-4xl tracking-tight">Sign in</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Separate console for tenant oversight. Tenant workspaces use{" "}
-            <Link href="/login" className="text-primary hover:underline">
-              workspace sign in
-            </Link>
-            .
-          </p>
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Admin email</Label>
-              <Input id="email" name="email" type="email" required autoComplete="username" />
+              <Input id="email" name="email" type="email" required autoComplete="username" placeholder="Enter your admin email" className="h-12 rounded-xl" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" required autoComplete="current-password" />
+              <Input id="password" name="password" type="password" required autoComplete="current-password" placeholder="Enter your password" className="h-12 rounded-xl" />
             </div>
-            <Button type="submit" className="w-full" size="lg" loading={submitting}>
-              Enter control plane
+            <Button type="submit" className="h-12 w-full rounded-xl font-semibold" size="lg" loading={submitting}>
+              Sign in
             </Button>
           </form>
           {message ? (
@@ -100,11 +78,7 @@ export default function AdminLoginPage() {
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           ) : null}
-          <p className="mt-8 text-[11px] text-muted-foreground">
-            Authentication is handled by the secured platform-admin API. Workspace credentials cannot access this console.
-          </p>
-        </div>
-      </div>
-    </main>
+          <p className="mt-8 text-center text-xs text-slate-500">Looking for your workspace? <Link href="/login" className="font-medium text-emerald-600 hover:underline">Workspace sign in</Link></p>
+    </AuthFrame>
   );
 }

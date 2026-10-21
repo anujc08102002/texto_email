@@ -2,6 +2,8 @@ package com.texto.emailplatform.auth.security;
 
 import com.texto.emailplatform.auth.domain.ApiKeyEntity;
 import com.texto.emailplatform.auth.domain.ApiKeyRepository;
+import com.texto.emailplatform.tenant.domain.TenantEntity;
+import com.texto.emailplatform.tenant.domain.TenantRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -15,9 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class HashedApiKeyAuthenticator implements ApiKeyAuthenticator {
 
     private final ApiKeyRepository apiKeyRepository;
+    private final TenantRepository tenantRepository;
 
-    public HashedApiKeyAuthenticator(ApiKeyRepository apiKeyRepository) {
+    public HashedApiKeyAuthenticator(ApiKeyRepository apiKeyRepository, TenantRepository tenantRepository) {
         this.apiKeyRepository = apiKeyRepository;
+        this.tenantRepository = tenantRepository;
     }
 
     @Override
@@ -29,6 +33,9 @@ public class HashedApiKeyAuthenticator implements ApiKeyAuthenticator {
         String hash = sha256(rawApiKey.trim());
         return apiKeyRepository.findByKeyHashAndStatus(hash, ApiKeyEntity.STATUS_ACTIVE)
                 .filter(ApiKeyEntity::isActive)
+            .filter(entity -> tenantRepository.findById(entity.getTenantId())
+                .filter(tenant -> TenantEntity.STATUS_ACTIVE.equals(tenant.getStatus()))
+                .isPresent())
                 .map(entity -> {
                     if (entity.getLastUsedAt() == null || entity.getLastUsedAt().isBefore(java.time.Instant.now().minusSeconds(300))) {
                         entity.markUsed();

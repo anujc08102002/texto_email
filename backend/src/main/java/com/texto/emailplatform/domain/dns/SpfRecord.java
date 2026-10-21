@@ -12,7 +12,8 @@ import java.util.Objects;
  * {@code include}/{@code a}/{@code mx} mechanisms and therefore does not enforce
  * the RFC 7208 §4.6.4 limit of 10 DNS-querying mechanisms. Receiving MTAs perform
  * that evaluation. We only check that the published TXT set contains exactly one
- * {@code v=spf1} record whose directives match the record we publish.
+ * {@code v=spf1} record that authorizes our configured mechanism and retains the configured terminal policy.
+ * Additional positive include mechanisms may authorize other providers.
  */
 public final class SpfRecord {
 
@@ -64,10 +65,31 @@ public final class SpfRecord {
         }
         String expected = generate(expectedInclude, allQualifier, ip4);
         Parsed want = parse(expected);
-        if (want == null || !parsed.equals(want)) {
+        if (want == null || !matchesRequiredAuthorization(parsed, want)) {
             return MatchResult.mismatch();
         }
         return MatchResult.matched();
+    }
+
+    // Permit existing providers to share a single SPF record. Only positive includes
+    // may extend our generated policy; an early all/redirect or negative include
+    // must never make the required authorization appear to be satisfied.
+    private static boolean matchesRequiredAuthorization(Parsed found, Parsed required) {
+        if (found.equals(required)) return true;
+        List<String> terms = found.terms();
+        if (terms.size() < 2 || !terms.getLast().equals(required.terms().getLast())) return false;
+        String authorization = required.terms().getFirst();
+        boolean authorized = false;
+        for (int i = 0; i < terms.size() - 1; i++) {
+            String term = terms.get(i);
+            if (term.startsWith("+")) term = term.substring(1);
+            if (term.equals(authorization)) {
+                authorized = true;
+            } else if (!term.matches("include:(?=.{1,253}$)[a-z0-9_](?:[a-z0-9_.-]*[a-z0-9])?")) {
+                return false;
+            }
+        }
+        return authorized;
     }
 
     public static boolean isSpfRecord(String value) {

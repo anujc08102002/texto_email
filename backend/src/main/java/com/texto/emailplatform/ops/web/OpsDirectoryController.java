@@ -10,6 +10,7 @@ import com.texto.emailplatform.ops.api.OpsHttpRequestAuditResponse;
 import com.texto.emailplatform.ops.api.OpsOutboxEventResponse;
 import com.texto.emailplatform.ops.api.OpsPageResponse;
 import com.texto.emailplatform.ops.api.OpsTenantResponse;
+import com.texto.emailplatform.ops.api.OpsTenantAccessRequest;
 import com.texto.emailplatform.ops.api.OpsTenantUsageResponse;
 import com.texto.emailplatform.ops.api.OpsUserResponse;
 import com.texto.emailplatform.ops.api.OpsWebhookEventResponse;
@@ -20,7 +21,9 @@ import java.time.Instant;
 import java.util.UUID;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -74,6 +77,24 @@ public class OpsDirectoryController {
     ) {
         OpsAuthorization.require(authentication);
         return ApiResponse.ok(opsCatalogService.tenants(status, q, page, size));
+    }
+
+    @GetMapping("/tenants/{tenantId}")
+    @Operation(summary = "Get tenant details")
+    public ApiResponse<OpsTenantResponse> tenant(Authentication authentication, @PathVariable UUID tenantId) {
+        OpsAuthorization.require(authentication);
+        return ApiResponse.ok(opsCatalogService.tenant(tenantId));
+    }
+
+    @PutMapping("/tenants/{tenantId}/access")
+    @Operation(summary = "Enable or suspend tenant access")
+    public ApiResponse<OpsTenantResponse> setTenantAccess(
+            Authentication authentication,
+            @PathVariable UUID tenantId,
+            @RequestBody OpsTenantAccessRequest request
+    ) {
+        OpsAuthorization.require(authentication);
+        return ApiResponse.ok(opsCatalogService.setTenantAccess(tenantId, request.enabled()));
     }
 
     @GetMapping("/users")

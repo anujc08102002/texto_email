@@ -1,0 +1,1 @@
+package com.texto.emailplatform.campaign.api; import java.time.Instant; import java.util.*; public record CampaignRecipientResponse(UUID id,UUID contactId,String email,String status,String variables,String errorMessage,Instant createdAt){}

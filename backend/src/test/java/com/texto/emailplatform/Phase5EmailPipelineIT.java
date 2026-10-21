@@ -9,12 +9,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import com.texto.emailplatform.campaign.CampaignRecipientSender;
 import com.texto.emailplatform.delivery.DeliveryEngine;
 import com.texto.emailplatform.email.EmailDeliveryWorker;
 import com.texto.emailplatform.email.domain.EmailMessageEntity;
 import com.texto.emailplatform.email.domain.EmailMessageRepository;
+import com.texto.emailplatform.campaign.domain.CampaignRepository;
 import com.texto.emailplatform.complaint.ComplaintIngestionRequest;
 import com.texto.emailplatform.complaint.ComplaintIngestionService;
+import com.texto.emailplatform.domain.DomainService;
 import com.texto.emailplatform.outbox.OutboxPublisher;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +71,12 @@ class Phase5EmailPipelineIT {
 
     @Autowired
     private EmailDeliveryWorker emailDeliveryWorker;
+
+        @Autowired
+        private CampaignRecipientSender campaignRecipientSender;
+
+        @Autowired
+        private DomainService domainService;
 
     @Autowired
     private EmailMessageRepository emailMessageRepository;
@@ -136,6 +145,105 @@ class Phase5EmailPipelineIT {
                 .andExpect(jsonPath("$.data.status").value("DELIVERED"))
                 .andExpect(jsonPath("$.data.attempts.length()").value(1))
                 .andExpect(jsonPath("$.data.attempts[0].status").value("SUCCESS"));
+    }
+
+    @Test
+        void bulkCampaignSendsAndDeliversEveryRecipient() throws Exception {
+        String token = register();
+        String slug = tenantSlug(token);
+        UUID tenantId = UUID.fromString(currentTenantId(token));
+        String firstEmail = "first-" + UUID.randomUUID() + "@example.com";
+        String secondEmail = "second-" + UUID.randomUUID() + "@example.com";
+
+        MvcResult firstContact = mockMvc.perform(post("/api/v1/contacts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","firstName":"First","properties":"{}"}
+                                """.formatted(firstEmail)))
+                .andExpect(status().isOk())
+                .andReturn();
+        MvcResult secondContact = mockMvc.perform(post("/api/v1/contacts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","firstName":"Second","properties":"{}"}
+                                """.formatted(secondEmail)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String firstContactId = JsonPath.read(firstContact.getResponse().getContentAsString(), "$.data.id");
+        String secondContactId = JsonPath.read(secondContact.getResponse().getContentAsString(), "$.data.id");
+
+        MvcResult draft = mockMvc.perform(post("/api/v1/campaigns/drafts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"Bulk pipeline",
+                                  "sender":"noreply@%s.texto.test",
+                                  "subject":"Hello {{first_name}}",
+                                  "textBody":"Hello {{first_name}}"
+                                }
+                                """.formatted(slug)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String campaignId = JsonPath.read(draft.getResponse().getContentAsString(), "$.data.id");
+
+        MvcResult addedRecipients = mockMvc.perform(post("/api/v1/campaigns/" + campaignId + "/recipients")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contactIds\":[\"%s\",\"%s\"]}".formatted(firstContactId, secondContactId)))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(JsonPath.<java.util.List<?>>read(addedRecipients.getResponse().getContentAsString(), "$.data"))
+                .hasSize(2);
+        UUID campaignUuid = UUID.fromString(campaignId);
+        var recipientIds = jdbcTemplate.queryForList(
+                "SELECT id FROM campaign_recipients WHERE campaign_id = ? ORDER BY email",
+                UUID.class,
+                campaignUuid
+        );
+        assertThat(recipientIds).hasSize(2).doesNotHaveDuplicates();
+        domainService.ensurePlatformTestDomain(tenantId);
+        jdbcTemplate.update("UPDATE campaigns SET status = 'PROCESSING' WHERE id = ?", campaignUuid);
+        recipientIds.forEach(recipientId -> campaignRecipientSender.send(campaignUuid, tenantId, recipientId));
+        campaignRecipientSender.send(campaignUuid, tenantId, recipientIds.getFirst());
+
+        Integer acceptedRecipients = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM campaign_recipients WHERE campaign_id = ? AND status = 'ACCEPTED' AND email_message_id IS NOT NULL",
+                Integer.class,
+                campaignUuid
+        );
+        var recipientStates = jdbcTemplate.queryForList(
+                "SELECT status || ':' || COALESCE(error_message, '') FROM campaign_recipients WHERE campaign_id = ? ORDER BY email",
+                String.class,
+                campaignUuid
+        );
+        assertThat(acceptedRecipients)
+                .withFailMessage("Expected two accepted recipients; recipient states: %s", recipientStates)
+                .isEqualTo(2);
+        var messageIds = jdbcTemplate.queryForList(
+                "SELECT email_message_id FROM campaign_recipients WHERE campaign_id = ? ORDER BY email",
+                UUID.class,
+                campaignUuid
+        );
+        assertThat(messageIds).hasSize(2).doesNotHaveDuplicates();
+        for (UUID messageId : messageIds) {
+            Integer outboxCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id = ?",
+                    Integer.class,
+                    messageId
+            );
+            assertThat(outboxCount).isEqualTo(1);
+        }
+
+        outboxPublisher.publishPending();
+        for (UUID messageId : messageIds) {
+            emailDeliveryWorker.process(messageId, tenantId, 1);
+            EmailMessageEntity message = emailMessageRepository.findById(messageId).orElseThrow();
+            assertThat(message.getStatus()).isEqualTo(EmailMessageEntity.STATUS_DELIVERED);
+            assertThat(message.getDeliveredAt()).isNotNull();
+        }
     }
 
     @Test

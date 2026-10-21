@@ -65,6 +65,32 @@ export type OpsDomain = {
 
 export type OpsDnsRecord = { type: string; name: string | null; status: string; selector: string | null; lastError: string | null; verifiedAt: string | null };
 export type OpsTenant = { id: string; name: string; slug: string; status: string; createdAt: string; updatedAt: string };
+export type OpsApiKey = { id: string; tenantId: string; name: string; keyPrefix: string; status: string; environment: string; createdAt: string; lastUsedAt: string | null; expiresAt: string | null; revokedAt: string | null };
+export type OpsUser = { id: string; tenantId: string; email: string; displayName: string; role: string; status: string; createdAt: string; updatedAt: string };
+export type OpsTenantUsage = {
+  tenantId: string;
+  subscriptionId: string;
+  planCode: string;
+  planName: string;
+  subscriptionStatus: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  entitlements: {
+    planCode: string;
+    planName: string;
+    subscriptionStatus: string;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+    features: Record<string, boolean>;
+    limits: Record<string, number | null>;
+    usage: Record<string, number>;
+  };
+  usage: {
+    periodStart: string;
+    periodEnd: string;
+    metrics: Array<{ metric: string; used: number; limit: number | null; remaining: number | null }>;
+  };
+};
 export type OpsWebhook = { id: string; tenantId: string; webhookConfigId: string; sourceMessageId: string | null; eventType: string; status: string; attemptCount: number; lastResponseCode: number | null; lastError: string | null; nextAttemptAt: string | null; lastAttemptAt: string | null; deliveredAt: string | null; createdAt: string };
 export type OpsOutbox = { id: string; tenantId: string; aggregateType: string; aggregateId: string; eventType: string; status: string; attempts: number; lastError: string | null; createdAt: string; publishedAt: string | null };
 export type OpsTraffic = { id: string; requestId: string; traceId: string | null; timestamp: string; tenantId: string | null; principalId: string | null; apiKeyId: string | null; httpMethod: string; route: string; statusCode: number; durationMs: number; requestSizeBytes: number | null; responseSizeBytes: number | null; clientIp: string | null; userAgent: string | null; referer: string | null; authOutcome: string | null; errorCode: string | null; errorCategory: string | null; emailMessageId: string | null; providerMessageId: string | null; operationType: string | null; createdAt: string };

@@ -79,6 +79,7 @@ public class EmailService {
     private final OutboxService outboxService;
     private final EmailSendRateLimiter emailSendRateLimiter;
     private final EmailPlatformProperties properties;
+    private final com.texto.emailplatform.attachment.AttachmentService attachments;
 
     public EmailService(
             EmailMessageRepository emailMessageRepository,
@@ -94,6 +95,25 @@ public class EmailService {
             EmailSendRateLimiter emailSendRateLimiter,
             EmailPlatformProperties properties
     ) {
+        this(emailMessageRepository, deliveryAttemptRepository, tenantRepository, domainService, suppressionService, templateService, entitlementService, usageService, webhookEventPublisher, outboxService, emailSendRateLimiter, properties, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public EmailService(
+            EmailMessageRepository emailMessageRepository,
+            DeliveryAttemptRepository deliveryAttemptRepository,
+            TenantRepository tenantRepository,
+            DomainService domainService,
+            SuppressionService suppressionService,
+            TemplateService templateService,
+            EntitlementService entitlementService,
+            UsageService usageService,
+            WebhookEventPublisher webhookEventPublisher,
+            OutboxService outboxService,
+            EmailSendRateLimiter emailSendRateLimiter,
+            EmailPlatformProperties properties,
+            com.texto.emailplatform.attachment.AttachmentService attachments
+    ) {
         this.emailMessageRepository = emailMessageRepository;
         this.deliveryAttemptRepository = deliveryAttemptRepository;
         this.tenantRepository = tenantRepository;
@@ -106,6 +126,7 @@ public class EmailService {
         this.outboxService = outboxService;
         this.emailSendRateLimiter = emailSendRateLimiter;
         this.properties = properties;
+        this.attachments = attachments;
     }
 
 
@@ -172,6 +193,10 @@ public class EmailService {
             String idempotencyKey
     ) {
         authorizeSend(tenantId);
+        if(metadata!=null && metadata.containsKey("attachmentIds")) {
+            if(attachments==null)throw new ApiException(503,"ATTACHMENT_STORAGE_UNAVAILABLE","Attachment storage is unavailable");
+            attachments.validate(tenantId,attachments.ids(metadata.get("attachmentIds")));
+        }
 
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
         if (normalizedKey != null) {
@@ -202,6 +227,23 @@ public class EmailService {
             resolvedText = rendered.textContent();
             resolvedTemplateId = templateId;
             resolvedTemplateVersionId = version.getId();
+        }
+
+        if (metadata != null && metadata.get("campaignUnsubscribeUrl") instanceof String unsubscribeUrl) {
+            java.net.URI uri;
+            try { uri = java.net.URI.create(unsubscribeUrl); }
+            catch (IllegalArgumentException exception) { throw new ApiException(400, "INVALID_UNSUBSCRIBE_URL", "Invalid unsubscribe URL"); }
+            if (uri.getHost() == null || uri.getUserInfo() != null || unsubscribeUrl.matches("(?s).*[\\r\\n<>\"].*")
+                    || !("https".equals(uri.getScheme()) || ("http".equals(uri.getScheme()) && ("localhost".equals(uri.getHost()) || "127.0.0.1".equals(uri.getHost()))))) {
+                throw new ApiException(400, "INVALID_UNSUBSCRIBE_URL", "Invalid unsubscribe URL");
+            }
+            String escapedUrl = unsubscribeUrl.replace("&", "&amp;").replace("'", "&#39;");
+            if (resolvedHtml != null && !resolvedHtml.isBlank()) {
+                String footer = "<p><a href=\"" + escapedUrl + "\">Unsubscribe</a></p>";
+                int end = resolvedHtml.toLowerCase(java.util.Locale.ROOT).lastIndexOf("</body>");
+                resolvedHtml = end < 0 ? resolvedHtml + footer : resolvedHtml.substring(0, end) + footer + resolvedHtml.substring(end);
+            }
+            if (resolvedText != null && !resolvedText.isBlank()) resolvedText += "\n\nUnsubscribe: " + unsubscribeUrl;
         }
 
         if (resolvedSubject == null || resolvedSubject.isBlank()) {

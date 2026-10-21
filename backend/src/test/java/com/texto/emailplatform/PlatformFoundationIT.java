@@ -160,6 +160,100 @@ class PlatformFoundationIT {
     }
 
     @Test
+    void campaignReportSeparatesQueueAcceptanceBounceAndComplaint() throws Exception {
+        String ownerEmail = "campaign-owner-" + java.util.UUID.randomUUID() + "@example.com";
+        String organization = "Campaign Report " + java.util.UUID.randomUUID();
+        MvcResult registration = mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"organization":"%s","email":"%s","password":"password1"}
+                                """.formatted(organization, ownerEmail)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String response = registration.getResponse().getContentAsString();
+        String token = com.jayway.jsonpath.JsonPath.read(response, "$.data.token");
+        java.util.UUID tenantId = java.util.UUID.fromString(
+                com.jayway.jsonpath.JsonPath.read(response, "$.data.user.tenantId")
+        );
+        String recipientEmail = "campaign-recipient-" + java.util.UUID.randomUUID() + "@example.com";
+
+        MvcResult draftResult = mockMvc.perform(post("/api/v1/campaigns/drafts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Report fixture","sender":"noreply@example.com","subject":"Report","textBody":"Report"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        java.util.UUID campaignId = java.util.UUID.fromString(
+                com.jayway.jsonpath.JsonPath.read(draftResult.getResponse().getContentAsString(), "$.data.id")
+        );
+
+        MvcResult contactResult = mockMvc.perform(post("/api/v1/contacts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","firstName":"Report","properties":"{}"}
+                                """.formatted(recipientEmail)))
+                .andExpect(status().isOk())
+                .andReturn();
+        java.util.UUID contactId = java.util.UUID.fromString(
+                com.jayway.jsonpath.JsonPath.read(contactResult.getResponse().getContentAsString(), "$.data.id")
+        );
+
+        MvcResult recipientsResult = mockMvc.perform(post("/api/v1/campaigns/" + campaignId + "/recipients")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contactIds\":[\"%s\"]}".formatted(contactId)))
+                .andReturn();
+        assertThat(recipientsResult.getResponse().getStatus())
+                .withFailMessage(recipientsResult.getResponse().getContentAsString())
+                .isEqualTo(200);
+
+        java.util.UUID messageId = java.util.UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO email_messages (id, tenant_id, status, recipient, subject, created_at, updated_at)
+                VALUES (?, ?, 'QUEUED', ?, 'Report', now(), now())
+                """, messageId, tenantId, recipientEmail);
+        jdbcTemplate.update("""
+                UPDATE campaign_recipients
+                   SET status = 'ACCEPTED', email_message_id = ?
+                 WHERE campaign_id = ? AND tenant_id = ?
+                """, messageId, campaignId, tenantId);
+
+        mockMvc.perform(get("/api/v1/campaigns/" + campaignId + "/report")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.queued").value(1))
+                .andExpect(jsonPath("$.data.accepted").value(0))
+                .andExpect(jsonPath("$.data.delivered").value(0));
+
+        jdbcTemplate.update("UPDATE email_messages SET status = 'DELIVERED' WHERE id = ?", messageId);
+        mockMvc.perform(get("/api/v1/campaigns/" + campaignId + "/report")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accepted").value(1))
+                .andExpect(jsonPath("$.data.delivered").value(0));
+
+        jdbcTemplate.update("UPDATE email_messages SET status = 'BOUNCED' WHERE id = ?", messageId);
+        jdbcTemplate.update("""
+                INSERT INTO complaint_events (
+                    id, tenant_id, email_message_id, event_hash, correlation_status,
+                    processing_status, provider, complaint_type, received_at, created_at
+                ) VALUES (?, ?, ?, ?, 'MATCHED', 'APPLIED', 'ses', 'SPAM', now(), now())
+                """, java.util.UUID.randomUUID(), tenantId, messageId, "a".repeat(64));
+
+        mockMvc.perform(get("/api/v1/campaigns/" + campaignId + "/report")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bounced").value(1))
+                .andExpect(jsonPath("$.data.complained").value(1))
+                .andExpect(jsonPath("$.data.delivered").value(0));
+    }
+
+    @Test
     void corsAllowsIdempotencyKeyFromLocalFrontend() throws Exception {
         mockMvc.perform(options("/api/v1/emails")
                         .header("Origin", "http://localhost:3000")

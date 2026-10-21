@@ -134,7 +134,7 @@ export function TemplateCreateForm() {
         </div>
 
         <SectionPanel title="Preview" description="Sandboxed iframe · scripts disabled">
-          <HtmlPreview html={htmlContent} />
+          <HtmlPreview html={htmlContent} subject={subject} />
         </SectionPanel>
       </div>
 

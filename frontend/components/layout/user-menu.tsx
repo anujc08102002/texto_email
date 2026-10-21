@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut, Settings, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { initials } from "@/lib/format";
 import { clearSession, getToken, type AuthUser } from "@/lib/session";
 import { logoutAccount } from "@/services/auth";
 
@@ -40,16 +39,17 @@ export function UserMenu({ user }: { user: AuthUser | null }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-full p-1 pr-2 outline-none transition-all duration-200 hover:bg-muted hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-95"
+          className="flex cursor-pointer items-center gap-3 rounded-lg bg-gray-100 p-2 outline-none transition-colors hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-ring/40 md:px-4 md:py-2"
           aria-label="Workspace menu"
         >
-          <Avatar className="size-7 transition-transform duration-200">
-            <AvatarFallback>{initials(user.organization || user.email)}</AvatarFallback>
+          <Avatar className="size-9">
+            <AvatarFallback className="bg-emerald-500 text-white"><UserRound className="size-[18px]" /></AvatarFallback>
           </Avatar>
-          <span className="hidden max-w-[140px] truncate text-left text-sm lg:block">
+          <span className="hidden max-w-[180px] truncate text-left text-sm md:block">
             <span className="block truncate font-medium leading-tight">{user.organization}</span>
-            <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
+            <span className="block truncate text-xs text-muted-foreground">User Profile</span>
           </span>
+          <ChevronDown size={18} className="hidden text-slate-500 md:block" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

@@ -6,25 +6,24 @@
 :root {
   --radius: 0.75rem;
 
-  /* Paper canvas + ink type + iris accent */
-  --background: oklch(0.972 0.008 85);
-  --foreground: oklch(0.18 0.03 275);
-  --card: oklch(0.995 0.004 85);
-  --card-foreground: oklch(0.18 0.03 275);
-  --popover: oklch(0.995 0.003 85);
-  --popover-foreground: oklch(0.18 0.03 275);
+  --background: oklch(0.975 0.004 250);
+  --foreground: oklch(0.22 0.02 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 250);
 
-  --primary: oklch(0.44 0.18 275);
-  --primary-foreground: oklch(0.99 0.004 275);
-  --primary-hover: oklch(0.38 0.17 275);
-  --primary-soft: oklch(0.94 0.04 275);
+  --primary: oklch(0.56 0.15 155);
+  --primary-foreground: oklch(0.99 0.004 155);
+  --primary-hover: oklch(0.48 0.15 155);
+  --primary-soft: oklch(0.95 0.035 155);
 
-  --secondary: oklch(0.955 0.01 85);
-  --secondary-foreground: oklch(0.28 0.03 275);
-  --muted: oklch(0.95 0.01 85);
-  --muted-foreground: oklch(0.48 0.03 275);
-  --accent: oklch(0.94 0.04 275);
-  --accent-foreground: oklch(0.32 0.1 275);
+  --secondary: oklch(0.955 0.006 250);
+  --secondary-foreground: oklch(0.3 0.02 250);
+  --muted: oklch(0.955 0.006 250);
+  --muted-foreground: oklch(0.5 0.02 250);
+  --accent: oklch(0.95 0.035 155);
+  --accent-foreground: oklch(0.38 0.1 155);
 
   --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(0.99 0 0);
@@ -37,7 +36,7 @@
 
   --border: oklch(0.9 0.012 80);
   --input: oklch(0.9 0.012 80);
-  --ring: oklch(0.44 0.18 275);
+  --ring: oklch(0.56 0.15 155);
 
   --chart-1: oklch(0.44 0.18 275);
   --chart-2: oklch(0.58 0.12 230);
@@ -45,19 +44,18 @@
   --chart-4: oklch(0.74 0.14 70);
   --chart-5: oklch(0.58 0.18 25);
 
-  /* Always-dark navigation rail */
-  --sidebar: oklch(0.16 0.028 275);
-  --sidebar-foreground: oklch(0.93 0.012 275);
-  --sidebar-primary: oklch(0.78 0.12 275);
-  --sidebar-primary-foreground: oklch(0.16 0.04 275);
-  --sidebar-accent: oklch(0.24 0.045 275);
-  --sidebar-accent-foreground: oklch(0.97 0.01 275);
-  --sidebar-border: oklch(1 0 0 / 0.08);
-  --sidebar-ring: oklch(0.78 0.12 275);
-  --sidebar-muted: oklch(0.68 0.03 275);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.36 0.02 250);
+  --sidebar-primary: oklch(0.56 0.15 155);
+  --sidebar-primary-foreground: oklch(0.99 0.004 155);
+  --sidebar-accent: oklch(0.95 0.035 155);
+  --sidebar-accent-foreground: oklch(0.38 0.1 155);
+  --sidebar-border: oklch(0.91 0.008 250);
+  --sidebar-ring: oklch(0.56 0.15 155);
+  --sidebar-muted: oklch(0.56 0.02 250);
 
-  --header: oklch(0.972 0.008 85 / 0.78);
-  --panel: oklch(0.995 0.004 85);
+  --header: oklch(1 0 0 / 0.96);
+  --panel: oklch(1 0 0);
   --panel-elevated: oklch(1 0 0);
   --inset: oklch(1 0 0 / 0.5);
   --glow: oklch(0.62 0.14 275 / 0.12);
@@ -198,7 +196,7 @@
   --color-tech-label: var(--tech-label);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-display: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 6px);
   --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
@@ -273,11 +271,6 @@ html.dark .bg-app {
 
 @utility bg-rail {
   background-color: var(--sidebar);
-  background-image:
-    radial-gradient(ellipse 80% 50% at 0% 0%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 55%),
-    linear-gradient(180deg, color-mix(in oklch, var(--sidebar) 86%, white) 0%, var(--sidebar) 18%),
-    radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--sidebar-muted) 30%, transparent) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 24px 24px;
 }
 
 @utility panel {
@@ -588,4 +581,136 @@ html.dark .shine-border {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* Textonext's tenant workspace: white chrome, gray canvas, emerald navigation. */
+.texto-workspace, body:has(.texto-workspace) {
+  --background: #f3f4f6;
+  --foreground: #0a0a0a;
+  --card: #fff;
+  --card-foreground: #0a0a0a;
+  --popover: #fff;
+  --popover-foreground: #0a0a0a;
+  --primary: #059669;
+  --primary-foreground: #ffffff;
+  --primary-hover: #047857;
+  --primary-soft: #ecfdf5;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #171717;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #a3a3a3;
+  --sidebar: #fff;
+  --sidebar-border: #e5e5e5;
+  --panel: #fff;
+  --panel-elevated: #fff;
+  --inset: transparent;
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+  color: var(--foreground);
+}
+.texto-workspace .text-page-heading {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 2rem;
+  color: #16a34a;
+}
+.texto-workspace main > div > div > div:first-child:has(> div > .text-page-heading) {
+  align-items: center;
+}
+
+.texto-workspace .font-display, .texto-workspace .text-display {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+}
+.texto-workspace [data-slot="card"], .texto-workspace .panel, .texto-workspace .panel-elevated {
+  background: #fff;
+  border-color: #e5e7eb;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  transform: none;
+  backdrop-filter: none;
+}
+@media (min-width: 768px) {
+  .texto-workspace .workspace-page-header { position: relative; justify-content: center; min-height: 2.5rem; }
+  .texto-workspace .workspace-page-header > div:first-child { flex: 1; text-align: center; padding-inline: 10rem; }
+  .texto-workspace .workspace-page-header > div:nth-child(2) { position: absolute; right: 0; }
+}
+
+body:has(.texto-workspace) [data-slot="input"] {
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: none;
+  transform: none;
+  backdrop-filter: none;
+}
+body:has(.texto-workspace) [data-slot="button"] {
+  border-radius: 0.5rem;
+  transform: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+body:has(.texto-workspace) [data-slot="dialog-content"] { border-radius: 0.75rem; }
+.texto-workspace table a { color: #16a34a; }
+
+/* Shared Textonext controls and neutral surfaces, including portaled menus. */
+:root {
+  --radius: .625rem;
+  --background: #fff; --foreground: #0a0a0a;
+  --primary: #059669; --primary-hover: #047857; --primary-foreground: #fff;
+  --card: #fff; --card-foreground: #0a0a0a;
+  --popover: #fff; --popover-foreground: #0a0a0a;
+  --border: #e5e5e5; --input: #e5e5e5; --ring: #a3a3a3;
+  --secondary: #f5f5f5; --secondary-foreground: #171717;
+  --muted: #f5f5f5; --muted-foreground: #737373;
+  --accent: #f5f5f5; --accent-foreground: #171717;
+  --sidebar: #fff; --sidebar-foreground: #4b5563; --sidebar-muted: #6b7280;
+  --sidebar-primary: #059669; --sidebar-primary-foreground: #fff;
+  --sidebar-accent: #d1fae5; --sidebar-accent-foreground: #047857;
+  --sidebar-border: #e5e5e5; --panel: #fff; --panel-elevated: #fff;
+}
+.texto-workspace .workspace-page-header .tech-label { display: none; }
+.texto-workspace .workspace-page-header .text-body { font-size: 14px; line-height: 20px; margin-inline: auto; }
+body:has(.texto-workspace) [data-slot="button"] { box-shadow: none; }
+.email-desktop { font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; }
+
+.texto-workspace.bg-app, .texto-workspace .bg-app { background: #f3f4f6; }
+.texto-workspace .glass { background: #fff; backdrop-filter: none; box-shadow: 0 1px 2px rgb(0 0 0 / .05); }
+.texto-workspace [data-collapsed="true"] .admin-nav-label, .texto-workspace [data-collapsed="true"] nav > div > p { display: none; }
+@media (max-width: 480px) { .home-light #site-nav .home-container { padding-inline: 12px; gap: 8px; } }
+
+/* Fluid spacing applies to every tenant/admin screen. Tables retain their own horizontal scroll. */
+.texto-workspace > header { gap: clamp(.5rem, 1.5vw, 1.5rem); padding-inline: clamp(.75rem, 2vw, 2.5rem); }
+.texto-workspace main { padding: clamp(1.25rem, 2.6vw, 3rem) clamp(1rem, 2.8vw, 3.5rem); }
+.texto-workspace .workspace-content { max-width: 112rem; margin-inline: auto; gap: clamp(1rem, 1.8vw, 2rem); }
+.texto-workspace .workspace-content > div { min-width: 0; }
+.texto-workspace .workspace-page-header { position: static; min-height: auto; align-items: center; justify-content: space-between; gap: 1.25rem; flex-wrap: wrap; }
+.texto-workspace .workspace-page-header > div:first-child { text-align: left; padding-inline: 0; min-width: min(100%, 12rem); }
+.texto-workspace .workspace-page-header > div:nth-child(2) { position: static; }
+.texto-workspace .workspace-page-header .text-body { margin-inline: 0; max-width: 52rem; }
+.texto-workspace .workspace-page-header .text-page-heading { font-size: clamp(1.4rem, 1.7vw, 2rem); line-height: 1.25; }
+.texto-workspace .email-editor-grid { align-items: start; }
+.texto-workspace .email-editor-preview { position: sticky; top: 0; }
+.texto-workspace .texto-data-grid { width: 100%; }
+.texto-workspace .panel, .texto-workspace .panel-elevated { transition: border-color .2s ease, box-shadow .2s ease; }
+.texto-workspace .panel:hover, .texto-workspace .panel-elevated:hover { border-color: #d1d9d6; }
+@media (max-width: 1279px) { .texto-workspace .email-editor-preview { position: static; } }
+@media (max-width: 767px) {
+  .texto-workspace main { padding: 1.25rem 1rem 2rem; }
+  .texto-workspace .workspace-page-header { align-items: start; }
+  .texto-workspace .workspace-page-header > div:first-child { flex-basis: 100%; }
+  .texto-workspace > header > div:first-child { gap: .3rem; }
+  .texto-workspace > header nav[aria-label="Platform"] { font-size: .68rem; }
+  .texto-workspace > header nav[aria-label="Platform"] a { padding-inline: .45rem; }
+  .texto-workspace .grid-pagination button { width: 1.75rem; height: 1.75rem; }
+}
+@media (max-width: 360px) {
+  .texto-workspace > header { padding-inline: .5rem; gap: .3rem; }
+  .texto-workspace > header nav[aria-label="Platform"] a { gap: .2rem; padding-inline: .3rem; }
+  .texto-workspace > header > div:first-child img { width: 30px; }
 }

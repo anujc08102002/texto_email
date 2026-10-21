@@ -6,6 +6,7 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.sesv2.SesV2Client;
 import software.amazon.awssdk.services.sesv2.model.EmailContent;
+import software.amazon.awssdk.services.sesv2.model.Destination;
 import software.amazon.awssdk.services.sesv2.model.RawMessage;
 import software.amazon.awssdk.services.sesv2.model.SendEmailRequest;
 import software.amazon.awssdk.services.sesv2.model.SendEmailResponse;
@@ -60,6 +61,9 @@ public class SesMtaClient implements MtaClient {
 
     private SendEmailRequest sendEmailRequest(MtaSubmitRequest request) {
         SendEmailRequest.Builder builder = SendEmailRequest.builder()
+                // Bcc is intentionally absent from the MIME headers. Preserve the complete
+                // envelope so SES delivers to To, Cc and blind-copy recipients alike.
+                .destination(Destination.builder().toAddresses(request.envelope().rcptTo()).build())
                 .content(EmailContent.builder()
                         .raw(RawMessage.builder()
                                 .data(SdkBytes.fromByteArray(request.rfc822()))

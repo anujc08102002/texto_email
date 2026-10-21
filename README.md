@@ -1,8 +1,8 @@
 # Texto Email Platform
 
-Modular-monolith foundation for a multi-tenant Email Service Provider (ESP) SaaS.
+Multi-tenant email platform with transactional delivery and contact-based bulk campaigns.
 
-This repository currently establishes the platform skeleton: Java 21 / Spring Boot 4 backend, Next.js dashboard, Docker Compose dependencies, Flyway-owned schema, health checks, and security architecture. Product features such as SMTP delivery, DKIM verification, campaigns, and billing providers are intentionally not implemented yet.
+Java 21 / Spring Boot 4 provides PostgreSQL/Flyway, tenant authentication, contacts, dynamic segments, saved campaign drafts, scheduling, chunked dispatch, recipient previews, test sends, unsubscribe handling, suppression, delivery feedback, quotas, templates, billing, and webhooks. The Next.js tenant workspace follows the Textonext layout. See [production readiness](docs/production-readiness.md) for verified behavior, deployment requirements, and remaining feature gaps.
 
 ## Architecture overview
 
@@ -230,3 +230,19 @@ To enable local TEST checkout:
 3. Set `BILLING_PROVIDER=razorpay` and the three Razorpay env vars.
 4. Point the Razorpay webhook to your backend `/api/v1/billing/webhooks/razorpay`.
 5. Upgrade from **Billing** or **Plans** in the dashboard.
+
+
+### Real SES delivery and Textonext appearance
+
+Use `bash scripts/start-ses.sh` on the existing EC2 host with its instance role, or `.\scripts\start-local.ps1 -Delivery ses` on Windows with AWS credentials. See [SES startup and verification](docs/ses-existing-setup.md). The launcher does not send mail automatically.
+
+The email introduction page reuses `Textonext`'s homepage stylesheet. Shared controls, login, workspace chrome, message/template grids and desktop email previews follow its styling. Header channel navigation uses `NEXT_PUBLIC_WHATSAPP_BASE_URL` (default `https://texto.in`); point it to the WhatsApp host or shared origin at integration time. This is navigation between the applications; their existing authentication and backend contracts remain separate.
+
+
+### Production installation and EC2-to-physical migration
+
+Follow [the production deployment runbook](docs/production-deployment.md) for staging on `email.texto-qa.in`, production on `email.texto.in`, separate HTTPS APIs, SES DNS and feedback, systemd services, persistent attachments, backups and migration. `scripts/prepare-production.py` generates fresh coordinated configuration without overwriting existing credentials. The development launcher is not a production service manager.
+
+### EC2 backend with the frontend on your PC
+
+Use [the step-by-step EC2 testing guide](docs/ec2-backend-local-frontend.md) for Git deployment, the exact backend/frontend environment split, admin tenant provisioning, DNS, SES, SQS feedback and signed webhooks. Start the Windows frontend with `scripts/start-ec2-frontend.ps1` after opening the SSH tunnel.

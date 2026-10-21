@@ -1,3 +1,6 @@
 infrastructure/postfix/docker-entrypoint.sh text eol=lf
 infrastructure/postfix/main.cf text eol=lf
 infrastructure/postfix/Dockerfile text eol=lf
+
+scripts/*.sh text eol=lf
+infrastructure/production/*.service text eol=lf

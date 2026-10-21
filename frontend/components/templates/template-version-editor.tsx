@@ -158,7 +158,7 @@ export function TemplateVersionEditor({ templateId }: { templateId: string }) {
         </div>
 
         <SectionPanel title="Preview" description="Sandboxed iframe · scripts disabled">
-          <HtmlPreview html={htmlContent} />
+          <HtmlPreview html={htmlContent} subject={subject} />
         </SectionPanel>
       </div>
 

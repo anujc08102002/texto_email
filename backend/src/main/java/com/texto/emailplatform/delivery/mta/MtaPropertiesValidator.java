@@ -70,6 +70,12 @@ public class MtaPropertiesValidator implements InitializingBean {
             if (properties.getSes().getRegion() == null || properties.getSes().getRegion().isBlank()) {
                 throw new IllegalStateException("email-platform.ses.region is required when implementation=ses");
             }
+            String configurationSet = properties.getSes().getConfigurationSetName();
+            if (configurationSet != null && !configurationSet.isBlank()
+                    && (!configurationSet.trim().matches("[A-Za-z0-9_-]{1,64}")
+                        || configurationSet.trim().equalsIgnoreCase("YOUR_CONFIGURATION_SET_NAME"))) {
+                throw new IllegalStateException("SES_CONFIGURATION_SET_NAME must name an actual SES configuration set, not a placeholder");
+            }
         }
 
         if (production) {

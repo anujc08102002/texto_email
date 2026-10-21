@@ -173,6 +173,36 @@ export type UsageSnapshot = {
   metrics: UsageMetric[];
 };
 
+export type AnalyticsTotals = {
+  accepted: number;
+  sent: number;
+  delivered: number;
+  deferred: number;
+  failed: number;
+  bounced: number;
+  complained: number;
+  suppressed: number;
+};
+
+export type AnalyticsRates = {
+  deliveryRate: number;
+  bounceRate: number;
+  complaintRate: number;
+  suppressionRate: number;
+};
+
+export type AnalyticsSeriesPoint = AnalyticsTotals & {
+  date: string;
+};
+
+export type Analytics = {
+  from: string;
+  to: string;
+  totals: AnalyticsTotals;
+  rates: AnalyticsRates;
+  series: AnalyticsSeriesPoint[];
+};
+
 export type ApiKey = {
   id: string;
   name: string;

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { HtmlPreview } from "@/components/templates/html-preview";
 import { PageHeader } from "@/components/layout/page-header";
 import { SectionPanel } from "@/components/ops/section-panel";
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +147,7 @@ export function TemplateDetail({ templateId }: { templateId: string }) {
         <SectionPanel title={selected ? `Version ${selected.version}` : "Content"}>
           {selected ? (
             <div className="space-y-4">
+              <HtmlPreview html={selected.htmlContent} subject={selected.subject} />
               <div>
                 <p className="tech-label">Subject</p>
                 <p className="mt-1 text-sm">{selected.subject}</p>

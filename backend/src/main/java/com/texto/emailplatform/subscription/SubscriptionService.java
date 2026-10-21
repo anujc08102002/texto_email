@@ -38,11 +38,18 @@ public class SubscriptionService {
      */
     @Transactional
     public SubscriptionEntity createFreeForTenant(UUID tenantId) {
-        PlanEntity plan = planRepository.findByCode(PlanCodes.FREE)
+        return createForTenant(tenantId, PlanCodes.FREE);
+    }
+
+    /** Explicit platform-admin grants; no payment or provider subscription is created. */
+    @Transactional
+    public SubscriptionEntity createForTenant(UUID tenantId, String planCode) {
+        String code = planCode == null ? PlanCodes.FREE : planCode.trim().toUpperCase(java.util.Locale.ROOT);
+        PlanEntity plan = planRepository.findByCode(code).filter(PlanEntity::isActive)
                 .orElseThrow(() -> new ApiException(
-                        HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                        HttpStatus.BAD_REQUEST.value(),
                         "PLAN_NOT_FOUND",
-                        "The FREE plan is missing from the catalog"
+                        "Choose an active plan from the catalog"
                 ));
         BillingPeriod period = BillingPeriod.current();
         SubscriptionEntity subscription = subscriptionRepository.save(SubscriptionEntity.create(
