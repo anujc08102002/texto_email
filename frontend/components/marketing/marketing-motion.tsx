@@ -14,7 +14,7 @@ export function MarketingMotion({ children }: { children: ReactNode }) {
     entrance.forEach((element, index) => {
       animations.push(element.animate([{ opacity: 0, transform: "translateY(22px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 650, delay: 70 + index * 95, easing: "cubic-bezier(.22,1,.36,1)", fill: "backwards" }));
     });
-    const cards = root.current.querySelectorAll<HTMLElement>(".home-section-head, .home-card, .home-check, .home-price-teaser");
+    const cards = root.current.querySelectorAll<HTMLElement>("[data-reveal], .home-check");
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         if (!entry.isIntersecting) return;

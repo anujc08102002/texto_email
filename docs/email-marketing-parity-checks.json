@@ -1,0 +1,66 @@
+{
+  "responsive": [
+    {
+      "brokenImages": 0,
+      "columns": "564.888px 511.1px",
+      "pageWidth": 1905,
+      "width": 1920
+    },
+    {
+      "brokenImages": 0,
+      "columns": "564.888px 511.1px",
+      "pageWidth": 1521,
+      "width": 1536
+    },
+    {
+      "brokenImages": 0,
+      "columns": "564.888px 511.1px",
+      "pageWidth": 1351,
+      "width": 1366
+    },
+    {
+      "brokenImages": 0,
+      "columns": "475.013px 429.775px",
+      "pageWidth": 1009,
+      "width": 1024
+    },
+    {
+      "brokenImages": 0,
+      "columns": "756.8px",
+      "pageWidth": 805,
+      "width": 820
+    },
+    {
+      "brokenImages": 0,
+      "columns": "704.8px",
+      "pageWidth": 753,
+      "width": 768
+    },
+    {
+      "brokenImages": 0,
+      "columns": "339.2px",
+      "pageWidth": 375,
+      "width": 390
+    },
+    {
+      "brokenImages": 0,
+      "columns": "308.8px",
+      "pageWidth": 345,
+      "width": 360
+    },
+    {
+      "brokenImages": 0,
+      "columns": "268.8px",
+      "pageWidth": 305,
+      "width": 320
+    }
+  ],
+  "interactions": {
+    "desktopDropdownKeyboard": true,
+    "mobileNavigation": true,
+    "marqueeAutoScroll": true,
+    "marqueeDrag": true,
+    "marqueeKeyboard": true
+  },
+  "note": "Application DOM measurements; not a pixel-diff comparison against a running WhatsApp server."
+}
